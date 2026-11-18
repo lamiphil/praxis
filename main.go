@@ -468,7 +468,8 @@ func (a *App) serverError(w http.ResponseWriter, err error) {
 func (a *App) securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
-		w.Header().Set("Referrer-Policy", "no-referrer")
+		// no-referrer would make browsers send "Origin: null" on form posts.
+		w.Header().Set("Referrer-Policy", "same-origin")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		next.ServeHTTP(w, r)
 	})
