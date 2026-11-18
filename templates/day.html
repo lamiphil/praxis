@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Journée · Praxis</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/day">Praxis</a>
+    <nav aria-label="Navigation principale">
+      <a aria-current="page" href="/day">Journée</a>
+      <a href="/calendar">Calendrier</a>
+      <a href="/habits">Habitudes</a>
+    </nav>
+    <form method="post" action="/logout"><button class="link-button" type="submit">Sortir</button></form>
+  </header>
+
+  <main class="page narrow">
+    <section class="date-nav" aria-label="Choisir la journée">
+      <a class="icon-button" href="/day?date={{.Previous}}" aria-label="Journée précédente">←</a>
+      <form method="get" action="/day" class="date-picker">
+        <input aria-label="Date" type="date" name="date" value="{{.Day.Date}}" max="{{.Today}}">
+        <button type="submit">Voir</button>
+      </form>
+      {{if .CanGoNext}}<a class="icon-button" href="/day?date={{.Next}}" aria-label="Journée suivante">→</a>{{else}}<span class="icon-button disabled" aria-hidden="true">→</span>{{end}}
+    </section>
+
+    <form method="post" action="/day" class="stack large-gap">
+      <input type="hidden" name="date" value="{{.Day.Date}}">
+
+      <section>
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">INTENTIONS</p>
+            <h1>Qu’as-tu honoré?</h1>
+          </div>
+          {{if .Day.Saved}}<span class="status saved">Enregistrée</span>{{else}}<span class="status">À compléter</span>{{end}}
+        </div>
+        <div class="habit-list">
+          {{range .Day.Habits}}
+          <label class="habit-check">
+            <input type="checkbox" name="habit" value="{{.ID}}" {{if .Done}}checked{{end}}>
+            <span class="checkmark" aria-hidden="true"></span>
+            <span>
+              <strong>{{.Name}}</strong>
+              {{if .Criterion}}<small>{{.Criterion}}</small>{{end}}
+            </span>
+          </label>
+          {{else}}
+          <p class="empty">Aucune habitude active pour cette date.</p>
+          {{end}}
+        </div>
+      </section>
+
+      <fieldset class="rating-fieldset">
+        <legend>
+          <span class="eyebrow">JOURNÉE</span>
+          <strong>Comment était ta journée?</strong>
+        </legend>
+        <div class="rating-options">
+          <label><input type="radio" name="rating" value="" {{if .NoneSelected}}checked{{end}}><span>—</span></label>
+          {{range .Ratings}}<label><input type="radio" name="rating" value="{{.Value}}" {{if .Selected}}checked{{end}}><span>{{.Value}}</span></label>{{end}}
+        </div>
+        <p class="hint">1 = très difficile · 13 = excellente</p>
+      </fieldset>
+
+      <button class="primary-action" type="submit">Enregistrer la journée</button>
+    </form>
+  </main>
+</body>
+</html>

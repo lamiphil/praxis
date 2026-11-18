@@ -1,0 +1,16 @@
+[
+  {"name": "Lecture", "criterion": "J’ai lu aujourd’hui"},
+  {"name": "Gym", "criterion": "J’ai fait une séance au gym"},
+  {"name": "Sans alcool", "criterion": "Je n’ai pas bu d’alcool"},
+  {"name": "Copine", "criterion": "J’ai passé du temps intentionnel avec ma copine"},
+  {"name": "Famille", "criterion": "J’ai eu un contact intentionnel avec ma famille"},
+  {"name": "Amis", "criterion": "J’ai eu un contact intentionnel avec des amis"},
+  {"name": "Guitare", "criterion": "J’ai joué de la guitare"},
+  {"name": "Cellulaire limité", "criterion": "J’ai respecté ma limite de temps d’écran"},
+  {"name": "Travail", "criterion": "J’ai avancé une priorité importante"},
+  {"name": "Dépenses maîtrisées", "criterion": "J’ai respecté mon intention de dépense"},
+  {"name": "Extérieur", "criterion": "J’ai passé du temps dehors"},
+  {"name": "Sommeil", "criterion": "J’ai suffisamment dormi"},
+  {"name": "Plaisir", "criterion": "J’ai fait quelque chose juste pour le plaisir"},
+  {"name": "Sans fumer", "criterion": "Je n’ai pas fumé"}
+]

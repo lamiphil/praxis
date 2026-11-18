@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Connexion · Praxis</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="login-page">
+  <main class="login-card">
+    <p class="eyebrow">PRATIQUE INTENTIONNELLE</p>
+    <h1>Praxis</h1>
+    <p class="muted">Un geste simple pour marquer ta journée.</p>
+    {{if .Error}}<p class="alert" role="alert">Mot de passe incorrect.</p>{{end}}
+    <form method="post" action="/login" class="stack">
+      <label for="password">Mot de passe</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
+      <button type="submit">Entrer</button>
+    </form>
+  </main>
+</body>
+</html>

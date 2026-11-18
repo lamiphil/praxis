@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Habitudes · Praxis</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/sortable.min.js?v=1.15.6" defer></script>
+  <script src="/static/habits.js?v=3" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/day">Praxis</a>
+    <nav aria-label="Navigation principale">
+      <a href="/day">Journée</a>
+      <a href="/calendar">Calendrier</a>
+      <a aria-current="page" href="/habits">Habitudes</a>
+    </nav>
+    <form method="post" action="/logout"><button class="link-button" type="submit">Sortir</button></form>
+  </header>
+
+  <main class="page">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">PARAMÈTRES</p>
+        <h1>Habitudes</h1>
+      </div>
+      <a class="text-link" href="/export.csv">Exporter en CSV</a>
+    </div>
+
+    <section class="settings-section">
+      <h2>Nouvelle habitude</h2>
+      <form method="post" action="/habits" class="habit-form new-habit">
+        <label>Nom<input name="name" required maxlength="80"></label>
+        <label class="wide">Critère de réussite<input name="criterion" maxlength="200" placeholder="Optionnel"></label>
+        <input name="position" type="hidden" value="{{.NextPosition}}">
+        <label>Active dès<input name="active_from" type="date" value="{{.Today}}" required></label>
+        <button type="submit">Ajouter</button>
+      </form>
+    </section>
+
+    <section class="settings-section">
+      <div class="order-toolbar">
+        <div>
+          <h2>Habitudes existantes</h2>
+          <p class="hint">Glisse la poignée pour changer l’ordre, puis enregistre-le.</p>
+        </div>
+        <form id="reorder-form" method="post" action="/habits/reorder">
+          <input id="habit-order" type="hidden" name="order">
+          <button id="save-order" type="submit" disabled>Enregistrer l’ordre</button>
+        </form>
+      </div>
+      <div id="habit-list" class="settings-list">
+        {{range .Habits}}
+        <form method="post" action="/habits" class="habit-form sortable-habit" data-habit-id="{{.ID}}">
+          <button class="drag-handle" type="button" aria-label="Déplacer {{.Name}}" title="Glisser pour déplacer">⠿</button>
+          <input type="hidden" name="id" value="{{.ID}}">
+          <label>Nom<input name="name" value="{{.Name}}" required maxlength="80"></label>
+          <label class="wide">Critère de réussite<input name="criterion" value="{{.Criterion}}" maxlength="200"></label>
+          <label>Ordre<input name="position" type="number" min="1" value="{{.Position}}" required></label>
+          <label>Active dès<input name="active_from" type="date" value="{{.ActiveFrom}}" required></label>
+          <label>Archivée le<input name="active_until" type="date" value="{{.ActiveUntil}}"></label>
+          <button type="submit">Enregistrer</button>
+        </form>
+        {{end}}
+      </div>
+      <p class="hint">Pour réactiver une habitude, vide la date d’archivage. Un changement de sens doit devenir une nouvelle habitude.</p>
+    </section>
+  </main>
+</body>
+</html>

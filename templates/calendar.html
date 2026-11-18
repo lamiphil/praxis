@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Calendrier · Praxis</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/day">Praxis</a>
+    <nav aria-label="Navigation principale">
+      <a href="/day">Journée</a>
+      <a aria-current="page" href="/calendar">Calendrier</a>
+      <a href="/habits">Habitudes</a>
+    </nav>
+    <form method="post" action="/logout"><button class="link-button" type="submit">Sortir</button></form>
+  </header>
+
+  <main class="page">
+    <div class="section-heading calendar-heading">
+      <div>
+        <p class="eyebrow">HISTORIQUE</p>
+        <h1>{{.MonthLabel}}</h1>
+      </div>
+      <div class="month-nav">
+        <a class="icon-button" href="/calendar?month={{.Previous}}" aria-label="Mois précédent">←</a>
+        <a class="icon-button" href="/calendar?month={{.Next}}" aria-label="Mois suivant">→</a>
+      </div>
+    </div>
+
+    <div class="calendar" role="grid" aria-label="{{.MonthLabel}}">
+      <span class="weekday">Lun</span><span class="weekday">Mar</span><span class="weekday">Mer</span><span class="weekday">Jeu</span><span class="weekday">Ven</span><span class="weekday">Sam</span><span class="weekday">Dim</span>
+      {{range .Cells}}
+        {{if .Date}}
+          {{if .Future}}
+            <span class="calendar-day future"><span>{{.Day}}</span></span>
+          {{else}}
+            <a class="calendar-day {{.Status}} {{if .Today}}today{{end}}" href="/day?date={{.Date}}" aria-label="{{.Date}}"><span>{{.Day}}</span><i aria-hidden="true"></i></a>
+          {{end}}
+        {{else}}
+          <span class="calendar-day blank" aria-hidden="true"></span>
+        {{end}}
+      {{end}}
+    </div>
+    <div class="legend" aria-label="Légende">
+      <span><i class="dot rated"></i> Notée</span>
+      <span><i class="dot unrated"></i> Sans note</span>
+      <span><i class="dot missing"></i> Manquante</span>
+    </div>
+  </main>
+</body>
+</html>

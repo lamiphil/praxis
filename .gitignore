@@ -1,0 +1,4 @@
+/data/
+/praxis
+*.db-shm
+*.db-wal
