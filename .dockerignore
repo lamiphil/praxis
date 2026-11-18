@@ -1,0 +1,7 @@
+.git
+.github
+data
+praxis
+*.db
+*.db-shm
+*.db-wal

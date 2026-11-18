@@ -43,6 +43,23 @@ go test ./...
 
 Praxis refuses to listen outside localhost unless both password and session key are explicitly set.
 
+## Container image
+
+The image runs as a non-root user (UID 65532), listens on `0.0.0.0:8080`, and stores SQLite in `/data/praxis.db`. Because it listens outside localhost, `PRAXIS_PASSWORD` and `PRAXIS_SESSION_KEY` are required.
+
+```fish
+docker build -t praxis:dev .
+docker run --rm -p 8080:8080 -v praxis-data:/data \
+    -e PRAXIS_PASSWORD=choose-a-password -e PRAXIS_SESSION_KEY=(openssl rand -hex 32) praxis:dev
+```
+
+Pushing a `vX.Y.Z` tag publishes `ghcr.io/lamiphil/praxis:X.Y.Z` and `sha-<commit>` for `linux/amd64` and `linux/arm64`. No `latest` tag is published. Pushes to `main` and pull requests only test and build the image.
+
+```fish
+git tag v0.1.0
+git push origin v0.1.0
+```
+
 ## Not in this local MVP
 
-Grafana reporting, Prometheus metrics, backups, container publishing, Kubernetes manifests, and `praxis.lamiphil.dev` TLS are intentionally deferred until the daily workflow is validated.
+Grafana reporting, Prometheus metrics, backups, Kubernetes manifests, and `praxis.lamiphil.dev` TLS are intentionally deferred until the daily workflow is validated.
