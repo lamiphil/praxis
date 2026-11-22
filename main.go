@@ -28,13 +28,14 @@ import (
 var assets embed.FS
 
 type App struct {
-	store        *Store
-	templates    *template.Template
-	location     *time.Location
-	passwordHash [32]byte
-	sessionKey   []byte
-	secureCookie bool
-	now          func() time.Time
+	store         *Store
+	templates     *template.Template
+	location      *time.Location
+	passwordHash  [32]byte
+	sessionKey    []byte
+	secureCookie  bool
+	trustedHeader string
+	now           func() time.Time
 }
 
 type ratingOption struct {
@@ -111,13 +112,17 @@ func main() {
 		log.Fatal(err)
 	}
 	app := &App{
-		store:        store,
-		templates:    templates,
-		location:     location,
-		passwordHash: sha256.Sum256([]byte(password)),
-		sessionKey:   []byte(sessionKey),
-		secureCookie: strings.EqualFold(os.Getenv("PRAXIS_SECURE_COOKIE"), "true"),
-		now:          time.Now,
+		store:         store,
+		templates:     templates,
+		location:      location,
+		passwordHash:  sha256.Sum256([]byte(password)),
+		sessionKey:    []byte(sessionKey),
+		secureCookie:  strings.EqualFold(os.Getenv("PRAXIS_SECURE_COOKIE"), "true"),
+		trustedHeader: http.CanonicalHeaderKey(os.Getenv("PRAXIS_TRUSTED_HEADER")),
+		now:           time.Now,
+	}
+	if app.trustedHeader != "" {
+		log.Printf("authentification via l'en-tête %q (bypass du mot de passe)", app.trustedHeader)
 	}
 
 	mux := http.NewServeMux()
@@ -423,6 +428,15 @@ func (a *App) auth(next http.HandlerFunc) http.HandlerFunc {
 }
 
 func (a *App) authenticated(r *http.Request) bool {
+	// Trusted-header auth (Authentik ForwardAuth). Only safe when the service
+	// is reachable solely through Traefik, because Traefik's authResponseHeaders
+	// overwrites any client-supplied value. A NetworkPolicy blocks in-cluster
+	// bypass.
+	if a.trustedHeader != "" {
+		if value := r.Header.Get(a.trustedHeader); value != "" {
+			return true
+		}
+	}
 	cookie, err := r.Cookie("praxis_session")
 	if err != nil {
 		return false

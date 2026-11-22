@@ -49,3 +49,35 @@ func TestSignedSession(t *testing.T) {
 		t.Fatal("tampered session was accepted")
 	}
 }
+
+func TestTrustedHeaderAuth(t *testing.T) {
+	app := &App{
+		sessionKey:    []byte("test-key"),
+		trustedHeader: http.CanonicalHeaderKey("X-authentik-username"),
+		now:           func() time.Time { return time.Date(2026, 11, 22, 12, 0, 0, 0, time.UTC) },
+	}
+
+	withHeader := httptest.NewRequest("GET", "/day", nil)
+	withHeader.Header.Set("X-Authentik-Username", "lamiphil")
+	if !app.authenticated(withHeader) {
+		t.Fatal("trusted header with a non-empty value was rejected")
+	}
+
+	empty := httptest.NewRequest("GET", "/day", nil)
+	empty.Header.Set("X-Authentik-Username", "")
+	if app.authenticated(empty) {
+		t.Fatal("empty trusted header was accepted")
+	}
+
+	missing := httptest.NewRequest("GET", "/day", nil)
+	if app.authenticated(missing) {
+		t.Fatal("missing trusted header was accepted without a cookie")
+	}
+
+	disabled := &App{sessionKey: []byte("test-key"), now: app.now}
+	spoofed := httptest.NewRequest("GET", "/day", nil)
+	spoofed.Header.Set("X-Authentik-Username", "lamiphil")
+	if disabled.authenticated(spoofed) {
+		t.Fatal("disabled trusted header still authenticated a header-only request")
+	}
+}
