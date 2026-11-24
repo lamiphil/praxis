@@ -49,7 +49,7 @@ go test ./...
 | `PRAXIS_VAPID_PRIVATE_KEY` | empty | Private VAPID key; keep it secret |
 | `PRAXIS_VAPID_SUBSCRIBER` | `mailto:admin@lamiphil.dev` | VAPID contact identifier |
 
-Praxis refuses to listen outside localhost unless both password and session key are explicitly set. Web Push stays disabled unless both VAPID keys are present.
+Praxis refuses to listen outside localhost unless both password and session key are explicitly set. Web Push stays disabled unless both VAPID keys are present. On iPhone and iPad, install Praxis on the Home Screen before enabling notifications.
 
 ## Container image
 

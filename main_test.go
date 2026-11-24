@@ -9,6 +9,21 @@ import (
 	"time"
 )
 
+func TestServiceWorkerUsesRootScope(t *testing.T) {
+	app := &App{}
+	response := httptest.NewRecorder()
+	app.serviceWorker(response, httptest.NewRequest(http.MethodGet, "/sw.js", nil))
+	if response.Code != http.StatusOK {
+		t.Fatalf("service worker returned %d", response.Code)
+	}
+	if got := response.Header().Get("Service-Worker-Allowed"); got != "/" {
+		t.Fatalf("service worker scope header = %q", got)
+	}
+	if response.Body.Len() == 0 {
+		t.Fatal("service worker body is empty")
+	}
+}
+
 func TestLoopbackOrigins(t *testing.T) {
 	for _, test := range []struct {
 		origin string

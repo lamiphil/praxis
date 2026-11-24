@@ -177,6 +177,7 @@ func main() {
 		log.Fatal(err)
 	}
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(staticFS)))
+	mux.HandleFunc("GET /sw.js", app.serviceWorker)
 	mux.HandleFunc("GET /healthz", app.health)
 	mux.HandleFunc("GET /login", app.loginPage)
 	mux.HandleFunc("POST /login", app.login)
@@ -223,6 +224,17 @@ func main() {
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		log.Printf("arrêt du serveur: %v", err)
 	}
+}
+
+func (a *App) serviceWorker(w http.ResponseWriter, _ *http.Request) {
+	content, err := assets.ReadFile("static/sw.js")
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+	w.Header().Set("Service-Worker-Allowed", "/")
+	_, _ = w.Write(content)
 }
 
 func (a *App) health(w http.ResponseWriter, r *http.Request) {

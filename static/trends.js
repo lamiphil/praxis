@@ -137,7 +137,7 @@ async function configurePush() {
     return;
   }
 
-  const registration = await navigator.serviceWorker.register('/static/sw.js');
+  const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
   let subscription = await registration.pushManager.getSubscription();
   let syncError = '';
   if (subscription) {
