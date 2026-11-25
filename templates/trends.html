@@ -9,8 +9,8 @@
   <meta name="apple-mobile-web-app-title" content="Praxis">
   <link rel="manifest" href="/static/manifest.webmanifest">
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/static/style.css">
-  <script src="/static/trends.js?v=1" defer></script>
+  <link rel="stylesheet" href="/static/style.css?v=2">
+  <script src="/static/trends.js?v=2" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -20,6 +20,7 @@
       <a href="/calendar">Calendrier</a>
       <a aria-current="page" href="/trends">Tendances</a>
       <a href="/habits">Habitudes</a>
+      <a href="/measurements">Mesures</a>
       <a href="/settings">Paramètres</a>
     </nav>
     <form method="post" action="/logout"><button class="link-button" type="submit">Sortir</button></form>
@@ -34,55 +35,45 @@
       </div>
     </section>
 
+    {{if .Summaries}}
     <div class="summary-grid">
+      {{range .Summaries}}
       <article class="summary-card">
-        <span>Sommeil moyen</span>
-        <strong>{{.SleepAverage}}</strong>
-        <small>{{.SleepDays}} jour(s) enregistré(s) · objectif 7 à 9 h</small>
+        <span>{{.Name}} (moyenne)</span>
+        <strong>{{.Average}}</strong>
+        <small>{{.Days}} jour(s) enregistré(s){{if .TargetLabel}} · {{.TargetLabel}}{{end}}</small>
       </article>
-      <article class="summary-card">
-        <span>Cafés moyens</span>
-        <strong>{{.CoffeeAverage}}</strong>
-        <small>{{.CoffeeDays}} jour(s) enregistré(s) · objectif 3 ou moins</small>
-      </article>
+      {{end}}
     </div>
 
     <script id="trend-data" type="application/json">{{.Data}}</script>
-    <section class="chart-card" aria-labelledby="sleep-chart-title">
+    {{range .Summaries}}
+    <section class="chart-card" aria-labelledby="chart-{{.Key}}-title">
       <div class="chart-heading">
         <div>
-          <p class="eyebrow">SOMMEIL</p>
-          <h2 id="sleep-chart-title">Heures par nuit</h2>
+          <p class="eyebrow">MESURE</p>
+          <h2 id="chart-{{.Key}}-title">{{.Name}}</h2>
         </div>
-        <span class="goal-key">Objectif 7–9 h</span>
+        {{if .TargetLabel}}<span class="goal-key">{{.TargetLabel}}</span>{{end}}
       </div>
-      <div id="sleep-chart" class="chart" role="img" aria-label="Sommeil des 30 derniers jours, avec une zone cible de 7 à 9 heures"></div>
+      <div class="chart" data-chart="{{.Key}}" role="img" aria-label="{{.Name}} des 30 derniers jours"></div>
     </section>
-
-    <section class="chart-card" aria-labelledby="coffee-chart-title">
-      <div class="chart-heading">
-        <div>
-          <p class="eyebrow">CAFÉS</p>
-          <h2 id="coffee-chart-title">Boissons caféinées</h2>
-        </div>
-        <span class="goal-key">Maximum 3</span>
-      </div>
-      <div id="coffee-chart" class="chart" role="img" aria-label="Nombre de cafés des 30 derniers jours, avec un maximum cible de 3"></div>
-    </section>
+    {{end}}
 
     <details class="data-details">
       <summary>Voir les valeurs exactes</summary>
       <div class="table-scroll">
         <table id="trend-table">
-          <thead><tr><th>Date</th><th>Sommeil</th><th>Cafés</th></tr></thead>
+          <thead><tr><th>Date</th>{{range .Summaries}}<th>{{.Name}}</th>{{end}}</tr></thead>
           <tbody></tbody>
         </table>
       </div>
     </details>
+    {{else}}
+    <p class="empty">Aucune mesure active. Ajoute-en une dans <a href="/measurements">Mesures</a>.</p>
+    {{end}}
 
-
-
-    <noscript><p class="alert">JavaScript est requis pour afficher les graphiques et gérer les notifications.</p></noscript>
+    <noscript><p class="alert">JavaScript est requis pour afficher les graphiques.</p></noscript>
   </main>
 </body>
 </html>

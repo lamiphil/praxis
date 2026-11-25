@@ -9,8 +9,8 @@
   <meta name="apple-mobile-web-app-title" content="Praxis">
   <link rel="manifest" href="/static/manifest.webmanifest">
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/static/style.css">
-  <script src="/static/day.js?v=1" defer></script>
+  <link rel="stylesheet" href="/static/style.css?v=2">
+  <script src="/static/day.js?v=2" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -20,6 +20,7 @@
       <a href="/calendar">Calendrier</a>
       <a href="/trends">Tendances</a>
       <a href="/habits">Habitudes</a>
+      <a href="/measurements">Mesures</a>
       <a href="/settings">Paramètres</a>
     </nav>
     <form method="post" action="/logout"><button class="link-button" type="submit">Sortir</button></form>
@@ -62,47 +63,35 @@
         </div>
       </section>
 
+      {{if .Measurements}}
       <fieldset class="tracker-fieldset">
         <legend>
           <span class="eyebrow">MESURES</span>
           <strong>Comment va ton corps?</strong>
         </legend>
         <div class="tracker-grid">
-          <div class="tracker-card" data-tracker="sleep" data-state="{{.SleepState}}">
+          {{range .Measurements}}
+          <div class="tracker-card" data-state="{{.State}}" data-step="{{.Step}}" data-target-min="{{.TargetMin}}" data-target-max="{{.TargetMax}}">
+            <input type="hidden" name="measurement" value="{{.ID}}">
             <div class="tracker-heading">
-              <label for="sleep-hours"><strong>Sommeil</strong><small>Objectif: 7 à 9 h</small></label>
-              <span class="tracker-status" aria-live="polite">{{if eq .SleepState "goal"}}Dans l’objectif{{else if eq .SleepState "outside"}}Hors objectif{{else}}Non enregistré{{end}}</span>
+              <label for="m-{{.ID}}"><strong>{{.Name}}</strong>{{if .TargetLabel}}<small>{{.TargetLabel}}</small>{{end}}{{if .Archived}}<small>Archivée</small>{{end}}</label>
+              <span class="tracker-status" aria-live="polite"></span>
             </div>
             <div class="stepper">
-              <button type="button" data-step="-0.25" aria-label="Réduire le sommeil de 15 minutes">−</button>
+              <button type="button" data-direction="-1" aria-label="Diminuer {{.Name}}">−</button>
               <div class="tracker-input">
-                <input id="sleep-hours" name="sleep_hours" type="number" min="0" max="24" step="0.25" inputmode="decimal" value="{{.SleepHours}}" aria-describedby="sleep-hint">
-                <span aria-hidden="true">h</span>
+                <input id="m-{{.ID}}" name="m_{{.ID}}" type="number" min="{{.Min}}" max="{{.Max}}" step="{{.Step}}" inputmode="{{if .Integer}}numeric{{else}}decimal{{end}}" value="{{.Value}}"{{if .Hint}} aria-describedby="m-{{.ID}}-hint"{{end}}>
+                {{if .Unit}}<span aria-hidden="true">{{.Unit}}</span>{{end}}
               </div>
-              <button type="button" data-step="0.25" aria-label="Ajouter 15 minutes de sommeil">+</button>
+              <button type="button" data-direction="1" aria-label="Augmenter {{.Name}}">+</button>
               <button class="clear-tracker" type="button">Effacer</button>
             </div>
-            <p class="hint" id="sleep-hint">Sommeil de nuit, attribué au jour du réveil.</p>
+            {{if .Hint}}<p class="hint" id="m-{{.ID}}-hint">{{.Hint}}</p>{{end}}
           </div>
-
-          <div class="tracker-card" data-tracker="coffee" data-state="{{.CoffeeState}}">
-            <div class="tracker-heading">
-              <label for="coffee-count"><strong>Cafés</strong><small>Objectif: 3 ou moins</small></label>
-              <span class="tracker-status" aria-live="polite">{{if eq .CoffeeState "goal"}}Dans l’objectif{{else if eq .CoffeeState "outside"}}Hors objectif{{else}}Non enregistré{{end}}</span>
-            </div>
-            <div class="stepper">
-              <button type="button" data-step="-1" aria-label="Retirer un café">−</button>
-              <div class="tracker-input">
-                <input id="coffee-count" name="coffee_count" type="number" min="0" max="20" step="1" inputmode="numeric" value="{{.CoffeeValue}}" aria-describedby="coffee-hint">
-                <span aria-hidden="true">café(s)</span>
-              </div>
-              <button type="button" data-step="1" aria-label="Ajouter un café">+</button>
-              <button class="clear-tracker" type="button">Effacer</button>
-            </div>
-            <p class="hint" id="coffee-hint">Une boisson au café caféinée compte pour une.</p>
-          </div>
+          {{end}}
         </div>
       </fieldset>
+      {{end}}
 
       <fieldset class="rating-fieldset">
         <legend>

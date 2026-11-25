@@ -13,7 +13,6 @@ import (
 	"html/template"
 	"io/fs"
 	"log"
-	"math"
 	"net"
 	"net/http"
 	"net/url"
@@ -59,10 +58,40 @@ type dayPage struct {
 	CanGoNext    bool
 	NoneSelected bool
 	Ratings      []ratingOption
-	SleepHours   string
-	SleepState   string
-	CoffeeValue  string
-	CoffeeState  string
+	Measurements []measurementView
+}
+
+// measurementView carries preformatted strings so templates need no helpers.
+type measurementView struct {
+	ID          int64
+	Key         string
+	Name        string
+	Unit        string
+	Hint        string
+	Step        string
+	Min         string
+	Max         string
+	TargetMin   string
+	TargetMax   string
+	TargetLabel string
+	Value       string
+	State       string
+	Integer     bool
+	Reminder    bool
+	Archived    bool
+	ValueCount  int
+	Steps       []stepOption
+}
+
+type stepOption struct {
+	Value    string
+	Label    string
+	Selected bool
+}
+
+type measurementsPage struct {
+	Measurements []measurementView
+	New          measurementView
 }
 
 type calendarCell struct {
@@ -86,18 +115,34 @@ type habitsPage struct {
 	NextPosition int
 }
 
-type trendPoint struct {
-	Date       string   `json:"date"`
-	SleepHours *float64 `json:"sleepHours"`
-	Coffee     *int     `json:"coffee"`
+type trendMeasurement struct {
+	Key       string     `json:"key"`
+	Name      string     `json:"name"`
+	Unit      string     `json:"unit"`
+	Integer   bool       `json:"integer"`
+	Min       float64    `json:"min"`
+	Max       float64    `json:"max"`
+	TargetMin *float64   `json:"targetMin"`
+	TargetMax *float64   `json:"targetMax"`
+	Values    []*float64 `json:"values"`
+}
+
+type trendData struct {
+	Dates        []string           `json:"dates"`
+	Measurements []trendMeasurement `json:"measurements"`
+}
+
+type trendSummary struct {
+	Key         string
+	Name        string
+	Average     string
+	Days        int
+	TargetLabel string
 }
 
 type trendsPage struct {
-	Data          template.JS
-	SleepAverage  string
-	SleepDays     int
-	CoffeeAverage string
-	CoffeeDays    int
+	Data      template.JS
+	Summaries []trendSummary
 }
 
 type settingsPage struct {
@@ -234,7 +279,12 @@ func (a *App) routes() (*http.ServeMux, error) {
 	mux.HandleFunc("GET /habits", a.auth(a.habits))
 	mux.HandleFunc("POST /habits", a.auth(a.saveHabit))
 	mux.HandleFunc("POST /habits/reorder", a.auth(a.reorderHabits))
+	mux.HandleFunc("GET /measurements", a.auth(a.measurements))
+	mux.HandleFunc("POST /measurements", a.auth(a.saveMeasurement))
+	mux.HandleFunc("POST /measurements/delete", a.auth(a.deleteMeasurement))
+	mux.HandleFunc("POST /measurements/reorder", a.auth(a.reorderMeasurements))
 	mux.HandleFunc("GET /export.csv", a.auth(a.exportCSV))
+	mux.HandleFunc("GET /measurements.csv", a.auth(a.exportMeasurementsCSV))
 	return mux, nil
 }
 
@@ -335,10 +385,7 @@ func (a *App) dayPage(w http.ResponseWriter, r *http.Request) {
 		CanGoNext:    next <= today,
 		NoneSelected: day.Rating == nil,
 		Ratings:      ratings,
-		SleepHours:   formatSleepMinutes(day.SleepMinutes),
-		SleepState:   sleepState(day.SleepMinutes),
-		CoffeeValue:  formatOptionalInt(day.CoffeeCount),
-		CoffeeState:  coffeeState(day.CoffeeCount),
+		Measurements: dayMeasurementViews(day.Measurements),
 	})
 }
 
@@ -357,15 +404,19 @@ func (a *App) saveDay(w http.ResponseWriter, r *http.Request) {
 		}
 		rating = &value
 	}
-	sleepMinutes, err := parseSleepHours(r.FormValue("sleep_hours"))
-	if err != nil {
-		http.Error(w, "durée de sommeil invalide", http.StatusBadRequest)
-		return
-	}
-	coffeeCount, err := parseOptionalInt(r.FormValue("coffee_count"))
-	if err != nil || (coffeeCount != nil && !validCoffeeCount(*coffeeCount)) {
-		http.Error(w, "nombre de cafés invalide", http.StatusBadRequest)
-		return
+	values := make(map[int64]*float64)
+	for _, raw := range r.Form["measurement"] {
+		id, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil {
+			http.Error(w, "mesure invalide", http.StatusBadRequest)
+			return
+		}
+		value, err := parseDecimal(r.FormValue("m_" + raw))
+		if err != nil {
+			http.Error(w, "valeur de mesure invalide", http.StatusBadRequest)
+			return
+		}
+		values[id] = value
 	}
 	doneIDs := make(map[int64]bool)
 	for _, raw := range r.Form["habit"] {
@@ -376,7 +427,7 @@ func (a *App) saveDay(w http.ResponseWriter, r *http.Request) {
 		}
 		doneIDs[id] = true
 	}
-	if err := a.store.SaveDay(date, a.today(), rating, sleepMinutes, coffeeCount, doneIDs); err != nil {
+	if err := a.store.SaveDay(date, a.today(), rating, values, doneIDs); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -435,58 +486,63 @@ func (a *App) trends(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	from := today.AddDate(0, 0, -29)
-	rows, err := a.store.TrendDays(from.Format("2006-01-02"), today.Format("2006-01-02"))
+	measurements, err := a.store.ActiveMeasurements()
 	if err != nil {
 		a.serverError(w, err)
 		return
 	}
-	byDate := make(map[string]TrendDay, len(rows))
-	for _, row := range rows {
-		byDate[row.Date] = row
+	values, err := a.store.MeasurementValues(from.Format("2006-01-02"), today.Format("2006-01-02"))
+	if err != nil {
+		a.serverError(w, err)
+		return
 	}
-	points := make([]trendPoint, 0, 30)
-	var sleepTotal float64
-	var coffeeTotal int
-	var sleepDays, coffeeDays int
-	for i := 0; i < 30; i++ {
-		date := from.AddDate(0, 0, i).Format("2006-01-02")
-		point := trendPoint{Date: date}
-		if row, ok := byDate[date]; ok {
-			if row.SleepMinutes != nil {
-				hours := float64(*row.SleepMinutes) / 60
-				point.SleepHours = &hours
-				sleepTotal += hours
-				sleepDays++
-			}
-			if row.CoffeeCount != nil {
-				value := *row.CoffeeCount
-				point.Coffee = &value
-				coffeeTotal += value
-				coffeeDays++
+	data := trendData{Dates: make([]string, 30)}
+	dateIndex := make(map[string]int, 30)
+	for i := range data.Dates {
+		data.Dates[i] = from.AddDate(0, 0, i).Format("2006-01-02")
+		dateIndex[data.Dates[i]] = i
+	}
+	series := make(map[int64]*trendMeasurement, len(measurements))
+	for _, m := range measurements {
+		data.Measurements = append(data.Measurements, trendMeasurement{
+			Key: m.Key, Name: m.Name, Unit: m.Unit, Integer: m.Integer(),
+			Min: m.Min, Max: m.Max, TargetMin: m.TargetMin, TargetMax: m.TargetMax,
+			Values: make([]*float64, 30),
+		})
+	}
+	for i, m := range measurements {
+		series[m.ID] = &data.Measurements[i]
+	}
+	for _, value := range values {
+		if item, ok := series[value.MeasurementID]; ok {
+			item.Values[dateIndex[value.Date]] = &value.Value
+		}
+	}
+	page := trendsPage{}
+	for i, m := range measurements {
+		summary := trendSummary{Key: m.Key, Name: m.Name, Average: "—", TargetLabel: targetLabel(m)}
+		var total float64
+		for _, value := range data.Measurements[i].Values {
+			if value != nil {
+				total += *value
+				summary.Days++
 			}
 		}
-		points = append(points, point)
+		if summary.Days > 0 {
+			summary.Average = strconv.FormatFloat(total/float64(summary.Days), 'f', 2, 64)
+			if m.Unit != "" {
+				summary.Average += " " + m.Unit
+			}
+		}
+		page.Summaries = append(page.Summaries, summary)
 	}
-	data, err := json.Marshal(points)
+	encoded, err := json.Marshal(data)
 	if err != nil {
 		a.serverError(w, err)
 		return
 	}
-	page := trendsPage{
-		Data:       template.JS(data), // JSON contains only validated dates and numbers.
-		SleepDays:  sleepDays,
-		CoffeeDays: coffeeDays,
-	}
-	if sleepDays > 0 {
-		page.SleepAverage = strconv.FormatFloat(sleepTotal/float64(sleepDays), 'f', 2, 64) + " h"
-	} else {
-		page.SleepAverage = "—"
-	}
-	if coffeeDays > 0 {
-		page.CoffeeAverage = strconv.FormatFloat(float64(coffeeTotal)/float64(coffeeDays), 'f', 2, 64)
-	} else {
-		page.CoffeeAverage = "—"
-	}
+	// json.Marshal escapes <, > and &, so user-defined names cannot close the script element.
+	page.Data = template.JS(encoded)
 	a.render(w, "trends.html", page)
 }
 
@@ -537,9 +593,114 @@ func (a *App) saveHabit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) reorderHabits(w http.ResponseWriter, r *http.Request) {
+	ids, ok := parseOrder(w, r)
+	if !ok {
+		return
+	}
+	if err := a.store.ReorderHabits(ids); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	http.Redirect(w, r, "/habits", http.StatusSeeOther)
+}
+
+func (a *App) measurements(w http.ResponseWriter, _ *http.Request) {
+	measurements, err := a.store.Measurements()
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+	views := make([]measurementView, 0, len(measurements))
+	for _, m := range measurements {
+		views = append(views, newMeasurementView(m, nil))
+	}
+	a.render(w, "measurements.html", measurementsPage{
+		Measurements: views,
+		New:          newMeasurementView(Measurement{Step: 1, Min: 0, Max: 10}, nil),
+	})
+}
+
+func (a *App) saveMeasurement(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "requête invalide", http.StatusBadRequest)
 		return
+	}
+	id, err := optionalInt64(r.FormValue("id"))
+	if err != nil {
+		http.Error(w, "identifiant invalide", http.StatusBadRequest)
+		return
+	}
+	m := Measurement{
+		ID:       id,
+		Name:     r.FormValue("name"),
+		Unit:     r.FormValue("unit"),
+		Hint:     r.FormValue("hint"),
+		Reminder: r.FormValue("reminder") == "on",
+		Archived: r.FormValue("archived") == "on",
+	}
+	fields := []struct {
+		name     string
+		target   *float64
+		optional **float64
+	}{
+		{"step", &m.Step, nil},
+		{"min", &m.Min, nil},
+		{"max", &m.Max, nil},
+		{"target_min", nil, &m.TargetMin},
+		{"target_max", nil, &m.TargetMax},
+	}
+	for _, field := range fields {
+		value, err := parseDecimal(r.FormValue(field.name))
+		if err != nil || (value == nil && field.target != nil) {
+			http.Error(w, "nombre invalide: "+field.name, http.StatusBadRequest)
+			return
+		}
+		if field.target != nil {
+			*field.target = *value
+		} else {
+			*field.optional = value
+		}
+	}
+	if err := a.store.SaveMeasurement(m); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	http.Redirect(w, r, "/measurements", http.StatusSeeOther)
+}
+
+func (a *App) deleteMeasurement(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "requête invalide", http.StatusBadRequest)
+		return
+	}
+	id, err := strconv.ParseInt(r.FormValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "identifiant invalide", http.StatusBadRequest)
+		return
+	}
+	if err := a.store.DeleteMeasurement(id); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	http.Redirect(w, r, "/measurements", http.StatusSeeOther)
+}
+
+func (a *App) reorderMeasurements(w http.ResponseWriter, r *http.Request) {
+	ids, ok := parseOrder(w, r)
+	if !ok {
+		return
+	}
+	if err := a.store.ReorderMeasurements(ids); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	http.Redirect(w, r, "/measurements", http.StatusSeeOther)
+}
+
+func parseOrder(w http.ResponseWriter, r *http.Request) ([]int64, bool) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "requête invalide", http.StatusBadRequest)
+		return nil, false
 	}
 	parts := strings.Split(r.FormValue("order"), ",")
 	ids := make([]int64, 0, len(parts))
@@ -547,15 +708,27 @@ func (a *App) reorderHabits(w http.ResponseWriter, r *http.Request) {
 		id, err := strconv.ParseInt(part, 10, 64)
 		if err != nil {
 			http.Error(w, "ordre invalide", http.StatusBadRequest)
-			return
+			return nil, false
 		}
 		ids = append(ids, id)
 	}
-	if err := a.store.ReorderHabits(ids); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	return ids, true
+}
+
+func (a *App) exportMeasurementsCSV(w http.ResponseWriter, _ *http.Request) {
+	rows, err := a.store.MeasurementExportRows()
+	if err != nil {
+		a.serverError(w, err)
 		return
 	}
-	http.Redirect(w, r, "/habits", http.StatusSeeOther)
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", "attachment; filename=praxis-mesures.csv")
+	writer := csv.NewWriter(w)
+	_ = writer.Write([]string{"date", "mesure", "nom", "unite", "valeur"})
+	for _, row := range rows {
+		_ = writer.Write([]string{row.Date, row.Key, row.Name, row.Unit, formatNumber(row.Value)})
+	}
+	writer.Flush()
 }
 
 func (a *App) exportCSV(w http.ResponseWriter, r *http.Request) {
@@ -582,8 +755,8 @@ func (a *App) exportCSV(w http.ResponseWriter, r *http.Request) {
 			rating,
 			row.Habit,
 			done,
-			formatSleepMinutes(row.SleepMinutes),
-			formatOptionalInt(row.CoffeeCount),
+			formatOptionalNumber(row.SleepHours),
+			formatOptionalNumber(row.Coffees),
 		})
 	}
 	writer.Flush()
@@ -661,21 +834,14 @@ func (a *App) deliverDueReminders(ctx context.Context, now time.Time) error {
 		return nil
 	}
 	date := local.Format("2006-01-02")
-	day, err := a.store.Day(date)
+	missing, err := a.store.MissingReminderMeasurements(date)
 	if err != nil {
 		return err
-	}
-	var missing []string
-	if day.SleepMinutes == nil {
-		missing = append(missing, "le sommeil")
-	}
-	if day.CoffeeCount == nil {
-		missing = append(missing, "les cafés")
 	}
 	if len(missing) == 0 {
 		return nil
 	}
-	body := "Il reste à enregistrer " + strings.Join(missing, " et ") + "."
+	body := "Il reste à enregistrer: " + joinFrench(missing) + "."
 	payload, err := json.Marshal(pushPayload{Title: "Praxis", Body: body, URL: "/day?date=" + date})
 	if err != nil {
 		return err
@@ -779,65 +945,58 @@ func (a *App) authenticated(r *http.Request) bool {
 	return hmac.Equal(provided, mac.Sum(nil))
 }
 
-func parseSleepHours(raw string) (*int, error) {
-	if raw == "" {
-		return nil, nil
+func joinFrench(items []string) string {
+	if len(items) < 2 {
+		return strings.Join(items, "")
 	}
-	hours, err := strconv.ParseFloat(raw, 64)
-	if err != nil {
-		return nil, err
-	}
-	minutesFloat := hours * 60
-	minutes := int(math.Round(minutesFloat))
-	if math.Abs(minutesFloat-float64(minutes)) > 1e-9 || !validSleepMinutes(minutes) {
-		return nil, errors.New("invalid sleep duration")
-	}
-	return &minutes, nil
+	return strings.Join(items[:len(items)-1], ", ") + " et " + items[len(items)-1]
 }
 
-func parseOptionalInt(raw string) (*int, error) {
-	if raw == "" {
-		return nil, nil
+// frenchNumber formats a number for display with a decimal comma.
+func frenchNumber(value float64) string { return strings.ReplaceAll(formatNumber(value), ".", ",") }
+
+func withUnit(value, unit string) string {
+	if unit == "" {
+		return value
 	}
-	value, err := strconv.Atoi(raw)
-	if err != nil {
-		return nil, err
-	}
-	return &value, nil
+	return value + " " + unit
 }
 
-func formatSleepMinutes(value *int) string {
-	if value == nil {
+func targetLabel(m Measurement) string {
+	switch {
+	case m.TargetMin != nil && m.TargetMax != nil:
+		return "objectif " + frenchNumber(*m.TargetMin) + " à " + withUnit(frenchNumber(*m.TargetMax), m.Unit)
+	case m.TargetMax != nil:
+		return "objectif " + withUnit(frenchNumber(*m.TargetMax), m.Unit) + " ou moins"
+	case m.TargetMin != nil:
+		return "objectif " + withUnit(frenchNumber(*m.TargetMin), m.Unit) + " ou plus"
+	default:
 		return ""
 	}
-	return strconv.FormatFloat(float64(*value)/60, 'f', -1, 64)
 }
 
-func formatOptionalInt(value *int) string {
-	if value == nil {
-		return ""
+var stepLabels = map[float64]string{1: "Entier", 0.5: "0,5", 0.25: "0,25", 0.1: "0,1", 0.01: "0,01"}
+
+func newMeasurementView(m Measurement, value *float64) measurementView {
+	view := measurementView{
+		ID: m.ID, Key: m.Key, Name: m.Name, Unit: m.Unit, Hint: m.Hint,
+		Step: formatNumber(m.Step), Min: formatNumber(m.Min), Max: formatNumber(m.Max),
+		TargetMin: formatOptionalNumber(m.TargetMin), TargetMax: formatOptionalNumber(m.TargetMax),
+		TargetLabel: targetLabel(m), Value: formatOptionalNumber(value), State: m.TargetState(value),
+		Integer: m.Integer(), Reminder: m.Reminder, Archived: m.Archived, ValueCount: m.ValueCount,
 	}
-	return strconv.Itoa(*value)
+	for _, step := range allowedSteps {
+		view.Steps = append(view.Steps, stepOption{Value: formatNumber(step), Label: stepLabels[step], Selected: step == m.Step})
+	}
+	return view
 }
 
-func sleepState(value *int) string {
-	if value == nil {
-		return "missing"
+func dayMeasurementViews(items []DayMeasurement) []measurementView {
+	views := make([]measurementView, 0, len(items))
+	for _, item := range items {
+		views = append(views, newMeasurementView(item.Measurement, item.Value))
 	}
-	if *value >= 7*60 && *value <= 9*60 {
-		return "goal"
-	}
-	return "outside"
-}
-
-func coffeeState(value *int) string {
-	if value == nil {
-		return "missing"
-	}
-	if *value <= 3 {
-		return "goal"
-	}
-	return "outside"
+	return views
 }
 
 func (a *App) signSession(expires time.Time) string {

@@ -1,5 +1,14 @@
 # Praxis - Log
 
+## 2026-11-25 - Generic measurements
+
+**2026-11-25**
+
+- Replaced the hard-coded sleep and coffee trackers with generic daily measurements, managed on a new top-level `Mesures` page.
+- Each measurement has a stable key, name, unit, precision, bounds, optional target range, help text, order, opt-in reminder, and archival. Measurements with values can only be archived; definition changes that exclude recorded values are rejected.
+- Migrated sleep and coffee into seeded `Sommeil` and `Cafés` measurements, kept the legacy columns as a rollback mirror, and rehearsed upgrade, v0.2.1 rollback, and re-upgrade on a copy of production data.
+- `Journée`, `Tendances`, reminders, `/export.csv`, and the new long-form `/measurements.csv` now read the generic tables. The homelab Grafana dashboard gets a measurement selector.
+
 ## 2026-11-25 - Settings for reminders
 
 **2026-11-25**

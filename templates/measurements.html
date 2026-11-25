@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mesures · Praxis</title>
+  <meta name="theme-color" content="#191b17">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Praxis">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/style.css?v=2">
+  <script src="/static/sortable.min.js?v=1.15.6" defer></script>
+  <script src="/static/reorder.js?v=2" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/day">Praxis</a>
+    <nav aria-label="Navigation principale">
+      <a href="/day">Journée</a>
+      <a href="/calendar">Calendrier</a>
+      <a href="/trends">Tendances</a>
+      <a href="/habits">Habitudes</a>
+      <a aria-current="page" href="/measurements">Mesures</a>
+      <a href="/settings">Paramètres</a>
+    </nav>
+    <form method="post" action="/logout"><button class="link-button" type="submit">Sortir</button></form>
+  </header>
+
+  <main class="page">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">PARAMÈTRES</p>
+        <h1>Mesures</h1>
+      </div>
+      <a class="text-link" href="/measurements.csv">Exporter les mesures en CSV</a>
+    </div>
+
+    <section class="settings-section">
+      <h2>Nouvelle mesure</h2>
+      {{with .New}}
+      <form method="post" action="/measurements" class="habit-form measurement-form">
+        <div class="measurement-fields">{{template "measurement-fields" .}}</div>
+        <div class="measurement-actions"><button type="submit">Ajouter</button></div>
+      </form>
+      {{end}}
+    </section>
+
+    <section class="settings-section">
+      <div class="order-toolbar">
+        <div>
+          <h2>Mesures existantes</h2>
+          <p class="hint">Glisse la poignée pour changer l’ordre, puis enregistre-le.</p>
+        </div>
+        <form method="post" action="/measurements/reorder">
+          <input type="hidden" name="order" data-sort-order>
+          <button type="submit" data-sort-save disabled>Enregistrer l’ordre</button>
+        </form>
+      </div>
+      <div class="settings-list" data-sortable>
+        {{range .Measurements}}
+        <form method="post" action="/measurements" class="habit-form measurement-form sortable-habit{{if .Archived}} archived{{end}}" data-sort-id="{{.ID}}">
+          <button class="drag-handle" type="button" aria-label="Déplacer {{.Name}}" title="Glisser pour déplacer">⠿</button>
+          <input type="hidden" name="id" value="{{.ID}}">
+          <div class="measurement-fields">
+            {{template "measurement-fields" .}}
+            <label class="check-field"><input type="checkbox" name="archived" {{if .Archived}}checked{{end}}> Archivée</label>
+          </div>
+          <div class="measurement-actions">
+            <small class="muted">Clé <code>{{.Key}}</code> · {{.ValueCount}} valeur(s)</small>
+            {{if eq .ValueCount 0}}<button class="secondary" type="submit" formaction="/measurements/delete">Supprimer</button>{{end}}
+            <button type="submit">Enregistrer</button>
+          </div>
+        </form>
+        {{else}}
+        <p class="empty">Aucune mesure pour le moment.</p>
+        {{end}}
+      </div>
+      <p class="hint">Une mesure avec des valeurs ne peut qu’être archivée. Elle disparaît alors de la saisie et des tendances, mais reste dans l’export.</p>
+    </section>
+  </main>
+</body>
+</html>
+
+{{define "measurement-fields"}}
+<label class="wide">Nom<input name="name" value="{{.Name}}" required maxlength="80"></label>
+<label>Unité<input name="unit" value="{{.Unit}}" maxlength="20" placeholder="h, km…"></label>
+<label>Précision<select name="step">{{range .Steps}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}</select></label>
+<label>Minimum<input name="min" value="{{.Min}}" inputmode="decimal" required></label>
+<label>Maximum<input name="max" value="{{.Max}}" inputmode="decimal" required></label>
+<label>Objectif min.<input name="target_min" value="{{.TargetMin}}" inputmode="decimal" placeholder="Aucun"></label>
+<label>Objectif max.<input name="target_max" value="{{.TargetMax}}" inputmode="decimal" placeholder="Aucun"></label>
+<label class="wide">Aide<input name="hint" value="{{.Hint}}" maxlength="200" placeholder="Optionnel"></label>
+<label class="check-field"><input type="checkbox" name="reminder" {{if .Reminder}}checked{{end}}> Rappel à 20 h</label>
+{{end}}

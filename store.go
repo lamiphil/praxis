@@ -30,10 +30,9 @@ type Habit struct {
 type Day struct {
 	Date         string
 	Rating       *int
-	SleepMinutes *int
-	CoffeeCount  *int
 	Saved        bool
 	Habits       []Habit
+	Measurements []DayMeasurement
 }
 
 type DayStatus struct {
@@ -42,18 +41,12 @@ type DayStatus struct {
 }
 
 type ExportRow struct {
-	Date         string
-	Rating       *int
-	Habit        string
-	Done         *bool
-	SleepMinutes *int
-	CoffeeCount  *int
-}
-
-type TrendDay struct {
-	Date         string
-	SleepMinutes *int
-	CoffeeCount  *int
+	Date       string
+	Rating     *int
+	Habit      string
+	Done       *bool
+	SleepHours *float64
+	Coffees    *float64
 }
 
 type PushSubscription struct {
@@ -165,7 +158,7 @@ CREATE TABLE IF NOT EXISTS push_deliveries (
 			}
 		}
 	}
-	return nil
+	return s.migrateMeasurements()
 }
 
 func (s *Store) seed(path, today string) error {
@@ -218,8 +211,8 @@ func (s *Store) seed(path, today string) error {
 
 func (s *Store) Day(date string) (Day, error) {
 	day := Day{Date: date}
-	var rating, sleepMinutes, coffeeCount sql.NullInt64
-	err := s.db.QueryRow("SELECT rating, sleep_minutes, coffee_count FROM days WHERE date = ?", date).Scan(&rating, &sleepMinutes, &coffeeCount)
+	var rating sql.NullInt64
+	err := s.db.QueryRow("SELECT rating FROM days WHERE date = ?", date).Scan(&rating)
 	switch {
 	case err == nil:
 		day.Saved = true
@@ -227,16 +220,11 @@ func (s *Store) Day(date string) (Day, error) {
 			value := int(rating.Int64)
 			day.Rating = &value
 		}
-		if sleepMinutes.Valid {
-			value := int(sleepMinutes.Int64)
-			day.SleepMinutes = &value
-		}
-		if coffeeCount.Valid {
-			value := int(coffeeCount.Int64)
-			day.CoffeeCount = &value
-		}
 	case errors.Is(err, sql.ErrNoRows):
 	default:
+		return day, err
+	}
+	if day.Measurements, err = s.dayMeasurements(date); err != nil {
 		return day, err
 	}
 
@@ -261,18 +249,12 @@ ORDER BY h.position, h.id`, date, date, date)
 	return day, rows.Err()
 }
 
-func (s *Store) SaveDay(date, today string, rating, sleepMinutes, coffeeCount *int, doneIDs map[int64]bool) error {
+func (s *Store) SaveDay(date, today string, rating *int, values map[int64]*float64, doneIDs map[int64]bool) error {
 	if !validISODate(date) || date > today {
 		return errors.New("invalid day date")
 	}
 	if rating != nil && !validRating(*rating) {
 		return errors.New("invalid rating")
-	}
-	if sleepMinutes != nil && !validSleepMinutes(*sleepMinutes) {
-		return errors.New("invalid sleep duration")
-	}
-	if coffeeCount != nil && !validCoffeeCount(*coffeeCount) {
-		return errors.New("invalid coffee count")
 	}
 
 	tx, err := s.db.Begin()
@@ -308,24 +290,19 @@ ORDER BY position, id`, date, date)
 		}
 	}
 
-	var ratingValue, sleepValue, coffeeValue any
+	var ratingValue any
 	if rating != nil {
 		ratingValue = *rating
 	}
-	if sleepMinutes != nil {
-		sleepValue = *sleepMinutes
-	}
-	if coffeeCount != nil {
-		coffeeValue = *coffeeCount
-	}
 	if _, err := tx.Exec(`
-INSERT INTO days (date, rating, sleep_minutes, coffee_count, updated_at)
-VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+INSERT INTO days (date, rating, updated_at)
+VALUES (?, ?, CURRENT_TIMESTAMP)
 ON CONFLICT(date) DO UPDATE SET
   rating = excluded.rating,
-  sleep_minutes = excluded.sleep_minutes,
-  coffee_count = excluded.coffee_count,
-  updated_at = CURRENT_TIMESTAMP`, date, ratingValue, sleepValue, coffeeValue); err != nil {
+  updated_at = CURRENT_TIMESTAMP`, date, ratingValue); err != nil {
+		return err
+	}
+	if err := saveDayMeasurements(tx, date, values); err != nil {
 		return err
 	}
 	if _, err := tx.Exec("DELETE FROM habit_values WHERE day_date = ?", date); err != nil {
@@ -421,9 +398,12 @@ WHERE id = ?`, habit.Name, habit.Criterion, habit.Position, habit.ActiveFrom, ac
 	return tx.Commit()
 }
 
-func (s *Store) ReorderHabits(ids []int64) error {
+func (s *Store) ReorderHabits(ids []int64) error { return s.reorder("habits", ids) }
+
+// reorder rewrites positions for every row of table; table is a constant name.
+func (s *Store) reorder(table string, ids []int64) error {
 	if len(ids) == 0 {
-		return errors.New("habit order is empty")
+		return errors.New("order is empty")
 	}
 	tx, err := s.db.Begin()
 	if err != nil {
@@ -431,19 +411,19 @@ func (s *Store) ReorderHabits(ids []int64) error {
 	}
 	defer tx.Rollback()
 	var count int
-	if err := tx.QueryRow("SELECT COUNT(*) FROM habits").Scan(&count); err != nil {
+	if err := tx.QueryRow("SELECT COUNT(*) FROM " + table).Scan(&count); err != nil {
 		return err
 	}
 	if len(ids) != count {
-		return errors.New("habit order is incomplete")
+		return errors.New("order is incomplete")
 	}
 	seen := make(map[int64]bool, len(ids))
 	for position, id := range ids {
 		if id < 1 || seen[id] {
-			return errors.New("habit order is invalid")
+			return errors.New("order is invalid")
 		}
 		seen[id] = true
-		result, err := tx.Exec("UPDATE habits SET position = ? WHERE id = ?", position+1, id)
+		result, err := tx.Exec("UPDATE "+table+" SET position = ? WHERE id = ?", position+1, id)
 		if err != nil {
 			return err
 		}
@@ -452,7 +432,7 @@ func (s *Store) ReorderHabits(ids []int64) error {
 			return err
 		}
 		if changed != 1 {
-			return errors.New("habit order contains an unknown habit")
+			return errors.New("order contains an unknown item")
 		}
 	}
 	return tx.Commit()
@@ -479,9 +459,15 @@ func (s *Store) DayStatuses(from, until string) (map[string]DayStatus, error) {
 	return statuses, rows.Err()
 }
 
+// ExportRows keeps the historical /export.csv shape; sleep and coffee come
+// from the generic "sommeil" and "cafes" measurements.
 func (s *Store) ExportRows() ([]ExportRow, error) {
 	rows, err := s.db.Query(`
-SELECT d.date, d.rating, COALESCE(h.name, ''), v.done, d.sleep_minutes, d.coffee_count
+SELECT d.date, d.rating, COALESCE(h.name, ''), v.done,
+       (SELECT mv.value FROM measurement_values mv JOIN measurements m ON m.id = mv.measurement_id
+        WHERE m.key = 'sommeil' AND mv.day_date = d.date),
+       (SELECT mv.value FROM measurement_values mv JOIN measurements m ON m.id = mv.measurement_id
+        WHERE m.key = 'cafes' AND mv.day_date = d.date)
 FROM days d
 LEFT JOIN habit_values v ON v.day_date = d.date
 LEFT JOIN habits h ON h.id = v.habit_id
@@ -493,9 +479,10 @@ ORDER BY d.date, h.position, h.id`)
 	var result []ExportRow
 	for rows.Next() {
 		var row ExportRow
-		var rating, sleepMinutes, coffeeCount sql.NullInt64
+		var rating sql.NullInt64
+		var sleep, coffee sql.NullFloat64
 		var done sql.NullBool
-		if err := rows.Scan(&row.Date, &rating, &row.Habit, &done, &sleepMinutes, &coffeeCount); err != nil {
+		if err := rows.Scan(&row.Date, &rating, &row.Habit, &done, &sleep, &coffee); err != nil {
 			return nil, err
 		}
 		if rating.Valid {
@@ -506,45 +493,13 @@ ORDER BY d.date, h.position, h.id`)
 			value := done.Bool
 			row.Done = &value
 		}
-		if sleepMinutes.Valid {
-			value := int(sleepMinutes.Int64)
-			row.SleepMinutes = &value
+		if sleep.Valid {
+			row.SleepHours = &sleep.Float64
 		}
-		if coffeeCount.Valid {
-			value := int(coffeeCount.Int64)
-			row.CoffeeCount = &value
+		if coffee.Valid {
+			row.Coffees = &coffee.Float64
 		}
 		result = append(result, row)
-	}
-	return result, rows.Err()
-}
-
-func (s *Store) TrendDays(from, until string) ([]TrendDay, error) {
-	rows, err := s.db.Query(`
-SELECT date, sleep_minutes, coffee_count
-FROM days
-WHERE date BETWEEN ? AND ? AND (sleep_minutes IS NOT NULL OR coffee_count IS NOT NULL)
-ORDER BY date`, from, until)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var result []TrendDay
-	for rows.Next() {
-		var day TrendDay
-		var sleepMinutes, coffeeCount sql.NullInt64
-		if err := rows.Scan(&day.Date, &sleepMinutes, &coffeeCount); err != nil {
-			return nil, err
-		}
-		if sleepMinutes.Valid {
-			value := int(sleepMinutes.Int64)
-			day.SleepMinutes = &value
-		}
-		if coffeeCount.Valid {
-			value := int(coffeeCount.Int64)
-			day.CoffeeCount = &value
-		}
-		result = append(result, day)
 	}
 	return result, rows.Err()
 }
@@ -605,12 +560,4 @@ func validRating(value int) bool {
 		}
 	}
 	return false
-}
-
-func validSleepMinutes(value int) bool {
-	return value >= 0 && value <= 24*60 && value%15 == 0
-}
-
-func validCoffeeCount(value int) bool {
-	return value >= 0 && value <= 20
 }

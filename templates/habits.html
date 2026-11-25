@@ -9,9 +9,9 @@
   <meta name="apple-mobile-web-app-title" content="Praxis">
   <link rel="manifest" href="/static/manifest.webmanifest">
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/style.css?v=2">
   <script src="/static/sortable.min.js?v=1.15.6" defer></script>
-  <script src="/static/habits.js?v=3" defer></script>
+  <script src="/static/reorder.js?v=2" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -21,6 +21,7 @@
       <a href="/calendar">Calendrier</a>
       <a href="/trends">Tendances</a>
       <a aria-current="page" href="/habits">Habitudes</a>
+      <a href="/measurements">Mesures</a>
       <a href="/settings">Paramètres</a>
     </nav>
     <form method="post" action="/logout"><button class="link-button" type="submit">Sortir</button></form>
@@ -52,14 +53,14 @@
           <h2>Habitudes existantes</h2>
           <p class="hint">Glisse la poignée pour changer l’ordre, puis enregistre-le.</p>
         </div>
-        <form id="reorder-form" method="post" action="/habits/reorder">
-          <input id="habit-order" type="hidden" name="order">
-          <button id="save-order" type="submit" disabled>Enregistrer l’ordre</button>
+        <form method="post" action="/habits/reorder">
+          <input type="hidden" name="order" data-sort-order>
+          <button type="submit" data-sort-save disabled>Enregistrer l’ordre</button>
         </form>
       </div>
-      <div id="habit-list" class="settings-list">
+      <div class="settings-list" data-sortable>
         {{range .Habits}}
-        <form method="post" action="/habits" class="habit-form sortable-habit" data-habit-id="{{.ID}}">
+        <form method="post" action="/habits" class="habit-form sortable-habit" data-sort-id="{{.ID}}">
           <button class="drag-handle" type="button" aria-label="Déplacer {{.Name}}" title="Glisser pour déplacer">⠿</button>
           <input type="hidden" name="id" value="{{.ID}}">
           <label>Nom<input name="name" value="{{.Name}}" required maxlength="80"></label>

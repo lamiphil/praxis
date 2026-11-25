@@ -13,36 +13,49 @@ const stateLabels = {
   missing: 'Non enregistré',
   goal: 'Dans l’objectif',
   outside: 'Hors objectif',
+  recorded: 'Enregistré',
 };
 
+const optionalNumber = (raw) => (raw === '' || raw === undefined ? null : Number(raw));
+
 function updateTracker(card) {
-  const input = card.querySelector('input');
-  const raw = input.value;
+  const input = card.querySelector('input[type="number"]');
+  const targetMin = optionalNumber(card.dataset.targetMin);
+  const targetMax = optionalNumber(card.dataset.targetMax);
   let state = 'missing';
-  if (raw !== '' && input.checkValidity()) {
-    const value = Number(raw);
-    state = card.dataset.tracker === 'sleep'
-      ? (value >= 7 && value <= 9 ? 'goal' : 'outside')
-      : (value <= 3 ? 'goal' : 'outside');
+  if (input.value !== '' && input.checkValidity()) {
+    const value = Number(input.value);
+    if (targetMin === null && targetMax === null) {
+      state = 'recorded';
+    } else {
+      const ok = (targetMin === null || value >= targetMin) && (targetMax === null || value <= targetMax);
+      state = ok ? 'goal' : 'outside';
+    }
   }
   card.dataset.state = state;
   card.querySelector('.tracker-status').textContent = stateLabels[state];
 }
 
+// First tap on an empty tracker starts in the target zone when there is one.
+function startValue(card, input, direction) {
+  const min = Number(input.min);
+  const step = Number(card.dataset.step);
+  const targetMin = optionalNumber(card.dataset.targetMin);
+  const targetMax = optionalNumber(card.dataset.targetMax);
+  if (targetMin !== null && targetMax !== null) return (targetMin + targetMax) / 2;
+  return direction > 0 ? min + step : min;
+}
+
 document.querySelectorAll('.tracker-card').forEach((card) => {
-  const input = card.querySelector('input');
-  card.querySelectorAll('[data-step]').forEach((button) => {
+  const input = card.querySelector('input[type="number"]');
+  const step = Number(card.dataset.step);
+  card.querySelectorAll('[data-direction]').forEach((button) => {
     button.addEventListener('click', () => {
-      const step = Number(button.dataset.step);
-      let value;
-      if (input.value === '') {
-        value = card.dataset.tracker === 'sleep' ? 8 : (step > 0 ? 1 : 0);
-      } else {
-        value = Number(input.value) + step;
-      }
-      const min = Number(input.min);
-      const max = Number(input.max);
-      input.value = String(Math.min(max, Math.max(min, Math.round(value * 4) / 4)));
+      const direction = Number(button.dataset.direction);
+      const raw = input.value === '' ? startValue(card, input, direction) : Number(input.value) + direction * step;
+      const snapped = Math.round(raw / step) * step;
+      const clamped = Math.min(Number(input.max), Math.max(Number(input.min), snapped));
+      input.value = String(Number(clamped.toFixed(6)));
       updateTracker(card);
     });
   });

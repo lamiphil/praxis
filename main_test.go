@@ -6,6 +6,8 @@ import (
 	"html/template"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -122,23 +124,133 @@ func TestSignedSession(t *testing.T) {
 	}
 }
 
-func TestMetricParsing(t *testing.T) {
+func TestParseDecimal(t *testing.T) {
 	for _, test := range []struct {
 		raw  string
-		want *int
+		want *float64
 		ok   bool
 	}{
 		{"", nil, true},
-		{"0", intPointer(0), true},
-		{"7.25", intPointer(435), true},
-		{"24", intPointer(1440), true},
-		{"7.1", nil, false},
-		{"24.25", nil, false},
+		{" 7.25 ", floatPointer(7.25), true},
+		{"7,5", floatPointer(7.5), true},
+		{"abc", nil, false},
+		{"NaN", nil, false},
+		{"Inf", nil, false},
 	} {
-		got, err := parseSleepHours(test.raw)
-		if (err == nil) != test.ok || !equalOptionalInt(got, test.want) {
-			t.Errorf("parseSleepHours(%q) = %v, %v; want %v, ok=%v", test.raw, got, err, test.want, test.ok)
+		got, err := parseDecimal(test.raw)
+		if (err == nil) != test.ok || (got == nil) != (test.want == nil) || got != nil && *got != *test.want {
+			t.Errorf("parseDecimal(%q) = %v, %v", test.raw, got, err)
 		}
+	}
+	sleep := Measurement{Step: 0.25, Min: 0, Max: 24}
+	for value, want := range map[float64]bool{0: true, 7.25: true, 24: true, 7.1: false, 24.25: false, -0.25: false} {
+		if sleep.ValidValue(value) != want {
+			t.Errorf("ValidValue(%v) != %v", value, want)
+		}
+	}
+	tenth := Measurement{Step: 0.1, Min: 0, Max: 1}
+	if !tenth.ValidValue(0.3) || tenth.ValidValue(0.35) {
+		t.Error("tenth precision validation is wrong")
+	}
+}
+
+func testApp(t *testing.T) (*App, *http.ServeMux) {
+	t.Helper()
+	templates, err := template.ParseFS(assets, "templates/*.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	location, err := time.LoadLocation("America/Toronto")
+	if err != nil {
+		t.Fatal(err)
+	}
+	app := &App{
+		store:         testStore(t),
+		templates:     templates,
+		location:      location,
+		trustedHeader: "X-Authentik-Username",
+		now:           func() time.Time { return time.Date(2026, 11, 15, 12, 0, 0, 0, location) },
+	}
+	mux, err := app.routes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return app, mux
+}
+
+func serve(t *testing.T, mux *http.ServeMux, method, path string, form url.Values) *httptest.ResponseRecorder {
+	t.Helper()
+	var request *http.Request
+	if form != nil {
+		request = httptest.NewRequest(method, path, strings.NewReader(form.Encode()))
+		request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	} else {
+		request = httptest.NewRequest(method, path, nil)
+	}
+	request.Header.Set("X-Authentik-Username", "lamiphil")
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, request)
+	return response
+}
+
+func TestMeasurementRoutes(t *testing.T) {
+	app, mux := testApp(t)
+	response := serve(t, mux, http.MethodPost, "/measurements", url.Values{
+		"name": {"Eau </script>"}, "unit": {"L"}, "step": {"0.25"}, "min": {"0"}, "max": {"6"}, "target_min": {"1,5"}, "target_max": {""},
+	})
+	if response.Code != http.StatusSeeOther {
+		t.Fatalf("create measurement returned %d: %s", response.Code, response.Body)
+	}
+	water := measurementByKey(t, app.store, "eau-script")
+	if water.TargetMin == nil || *water.TargetMin != 1.5 || water.TargetMax != nil || water.Reminder {
+		t.Fatalf("unexpected created measurement: %+v", water)
+	}
+	if response := serve(t, mux, http.MethodPost, "/measurements", url.Values{"name": {"x"}, "step": {"1"}, "min": {"5"}, "max": {"1"}}); response.Code != http.StatusBadRequest {
+		t.Fatalf("invalid measurement returned %d", response.Code)
+	}
+
+	page := serve(t, mux, http.MethodGet, "/measurements", nil)
+	if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), `aria-current="page" href="/measurements"`) || !strings.Contains(page.Body.String(), "eau-script") {
+		t.Fatalf("measurements page: %d", page.Code)
+	}
+
+	sleep := measurementByKey(t, app.store, "sommeil")
+	id := strconv.FormatInt(water.ID, 10)
+	sleepID := strconv.FormatInt(sleep.ID, 10)
+	day := serve(t, mux, http.MethodPost, "/day", url.Values{
+		"date": {"2026-11-15"}, "measurement": {id, sleepID}, "m_" + id: {"2,25"}, "m_" + sleepID: {"7.5"},
+	})
+	if day.Code != http.StatusSeeOther {
+		t.Fatalf("save day returned %d: %s", day.Code, day.Body)
+	}
+	bad := serve(t, mux, http.MethodPost, "/day", url.Values{"date": {"2026-11-15"}, "measurement": {id}, "m_" + id: {"2.3"}})
+	if bad.Code != http.StatusBadRequest {
+		t.Fatalf("invalid value returned %d", bad.Code)
+	}
+
+	dayPage := serve(t, mux, http.MethodGet, "/day?date=2026-11-15", nil).Body.String()
+	if !strings.Contains(dayPage, `name="m_`+id+`"`) || !strings.Contains(dayPage, `value="2.25"`) {
+		t.Fatal("day page does not render the generic measurement")
+	}
+	trends := serve(t, mux, http.MethodGet, "/trends", nil).Body.String()
+	if !strings.Contains(trends, `data-chart="eau-script"`) || !strings.Contains(trends, `Eau \u003c/script\u003e`) {
+		t.Fatal("trends page does not safely render the generic measurement")
+	}
+	if strings.Count(trends, "</script>") != strings.Count(trends, "<script") {
+		t.Fatal("user-defined name broke out of a script element")
+	}
+
+	csvBody := serve(t, mux, http.MethodGet, "/measurements.csv", nil).Body.String()
+	if !strings.HasPrefix(csvBody, "date,mesure,nom,unite,valeur\n") || !strings.Contains(csvBody, "2026-11-15,sommeil,Sommeil,h,7.5\n") || !strings.Contains(csvBody, "2026-11-15,eau-script,Eau </script>,L,2.25\n") {
+		t.Fatalf("unexpected measurements CSV:\n%s", csvBody)
+	}
+	legacy := serve(t, mux, http.MethodGet, "/export.csv", nil).Body.String()
+	if !strings.HasPrefix(legacy, "date,note,habitude,faite,sommeil_heures,cafes\n") || !strings.Contains(legacy, ",7.5,\n") {
+		t.Fatalf("unexpected legacy CSV:\n%s", legacy)
+	}
+
+	if response := serve(t, mux, http.MethodPost, "/measurements/delete", url.Values{"id": {id}}); response.Code != http.StatusBadRequest {
+		t.Fatalf("deleting a measurement with values returned %d", response.Code)
 	}
 }
 
@@ -160,7 +272,7 @@ func TestDueReminderSendsOncePerSubscription(t *testing.T) {
 			if err := json.Unmarshal(payload, &message); err != nil {
 				t.Fatal(err)
 			}
-			if message.URL != "/day?date=2026-11-15" || message.Body == "" {
+			if message.URL != "/day?date=2026-11-15" || message.Body != "Il reste à enregistrer: Sommeil et Cafés." {
 				t.Fatalf("unexpected payload: %+v", message)
 			}
 			sent++
@@ -177,12 +289,6 @@ func TestDueReminderSendsOncePerSubscription(t *testing.T) {
 	if sent != 1 {
 		t.Fatalf("sent %d reminders, want 1", sent)
 	}
-}
-
-func intPointer(value int) *int { return &value }
-
-func equalOptionalInt(left, right *int) bool {
-	return left == nil && right == nil || left != nil && right != nil && *left == *right
 }
 
 func TestTrustedHeaderAuth(t *testing.T) {
