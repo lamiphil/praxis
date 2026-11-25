@@ -20,6 +20,7 @@
       <a href="/calendar">Calendrier</a>
       <a aria-current="page" href="/trends">Tendances</a>
       <a href="/habits">Habitudes</a>
+      <a href="/settings">Paramètres</a>
     </nav>
     <form method="post" action="/logout"><button class="link-button" type="submit">Sortir</button></form>
   </header>
@@ -79,15 +80,7 @@
       </div>
     </details>
 
-    <section class="notification-card" data-push-available="{{.PushAvailable}}" data-vapid-key="{{.VAPIDPublicKey}}">
-      <div>
-        <p class="eyebrow">RAPPEL</p>
-        <h2>Notification à 20 h</h2>
-        <p class="muted">Ce navigateur peut te rappeler les mesures manquantes. Chaque appareil s’abonne séparément. Sur iPhone ou iPad, ajoute d’abord Praxis à l’écran d’accueil.</p>
-        <p id="push-status" class="push-status" aria-live="polite"></p>
-      </div>
-      {{if .PushAvailable}}<button id="push-toggle" type="button">Activer sur cet appareil</button>{{else}}<span class="status">Indisponible</span>{{end}}
-    </section>
+
 
     <noscript><p class="alert">JavaScript est requis pour afficher les graphiques et gérer les notifications.</p></noscript>
   </main>

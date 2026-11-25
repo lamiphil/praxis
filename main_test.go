@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"html/template"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -21,6 +23,59 @@ func TestServiceWorkerUsesRootScope(t *testing.T) {
 	}
 	if response.Body.Len() == 0 {
 		t.Fatal("service worker body is empty")
+	}
+}
+
+func TestSettingsRouteContainsReminderAndTrendsDoesNot(t *testing.T) {
+	store := testStore(t)
+	templates, err := template.ParseFS(assets, "templates/*.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	location, err := time.LoadLocation("America/Toronto")
+	if err != nil {
+		t.Fatal(err)
+	}
+	app := &App{
+		store:           store,
+		templates:       templates,
+		location:        location,
+		trustedHeader:   "X-Authentik-Username",
+		vapidPublicKey:  "public-key",
+		vapidPrivateKey: "private-key",
+		now:             func() time.Time { return time.Date(2026, 11, 25, 12, 0, 0, 0, location) },
+	}
+	mux, err := app.routes()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, test := range []struct {
+		path            string
+		wantReminder    bool
+		wantCurrentLink string
+		wantPushScript  bool
+	}{
+		{"/settings", true, `aria-current="page" href="/settings"`, true},
+		{"/trends", false, `aria-current="page" href="/trends"`, false},
+	} {
+		request := httptest.NewRequest(http.MethodGet, test.path, nil)
+		request.Header.Set("X-Authentik-Username", "lamiphil")
+		response := httptest.NewRecorder()
+		mux.ServeHTTP(response, request)
+		body := response.Body.String()
+		if response.Code != http.StatusOK {
+			t.Errorf("GET %s returned %d", test.path, response.Code)
+		}
+		if strings.Contains(body, "Notification à 20 h") != test.wantReminder {
+			t.Errorf("GET %s reminder presence mismatch", test.path)
+		}
+		if !strings.Contains(body, `href="/settings">Paramètres</a>`) || !strings.Contains(body, test.wantCurrentLink) {
+			t.Errorf("GET %s navigation is incomplete", test.path)
+		}
+		if strings.Contains(body, "/static/push.js") != test.wantPushScript {
+			t.Errorf("GET %s push script presence mismatch", test.path)
+		}
 	}
 }
 

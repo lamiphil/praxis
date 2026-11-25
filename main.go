@@ -93,11 +93,14 @@ type trendPoint struct {
 }
 
 type trendsPage struct {
-	Data           template.JS
-	SleepAverage   string
-	SleepDays      int
-	CoffeeAverage  string
-	CoffeeDays     int
+	Data          template.JS
+	SleepAverage  string
+	SleepDays     int
+	CoffeeAverage string
+	CoffeeDays    int
+}
+
+type settingsPage struct {
 	PushAvailable  bool
 	VAPIDPublicKey string
 }
@@ -171,28 +174,10 @@ func main() {
 		log.Printf("authentification via l'en-tête %q (bypass du mot de passe)", app.trustedHeader)
 	}
 
-	mux := http.NewServeMux()
-	staticFS, err := fs.Sub(assets, "static")
+	mux, err := app.routes()
 	if err != nil {
 		log.Fatal(err)
 	}
-	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(staticFS)))
-	mux.HandleFunc("GET /sw.js", app.serviceWorker)
-	mux.HandleFunc("GET /healthz", app.health)
-	mux.HandleFunc("GET /login", app.loginPage)
-	mux.HandleFunc("POST /login", app.login)
-	mux.HandleFunc("POST /logout", app.auth(app.logout))
-	mux.HandleFunc("GET /", app.auth(app.home))
-	mux.HandleFunc("GET /day", app.auth(app.dayPage))
-	mux.HandleFunc("POST /day", app.auth(app.saveDay))
-	mux.HandleFunc("GET /calendar", app.auth(app.calendar))
-	mux.HandleFunc("GET /trends", app.auth(app.trends))
-	mux.HandleFunc("POST /push/subscribe", app.auth(app.subscribePush))
-	mux.HandleFunc("POST /push/unsubscribe", app.auth(app.unsubscribePush))
-	mux.HandleFunc("GET /habits", app.auth(app.habits))
-	mux.HandleFunc("POST /habits", app.auth(app.saveHabit))
-	mux.HandleFunc("POST /habits/reorder", app.auth(app.reorderHabits))
-	mux.HandleFunc("GET /export.csv", app.auth(app.exportCSV))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -224,6 +209,33 @@ func main() {
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		log.Printf("arrêt du serveur: %v", err)
 	}
+}
+
+func (a *App) routes() (*http.ServeMux, error) {
+	staticFS, err := fs.Sub(assets, "static")
+	if err != nil {
+		return nil, err
+	}
+	mux := http.NewServeMux()
+	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(staticFS)))
+	mux.HandleFunc("GET /sw.js", a.serviceWorker)
+	mux.HandleFunc("GET /healthz", a.health)
+	mux.HandleFunc("GET /login", a.loginPage)
+	mux.HandleFunc("POST /login", a.login)
+	mux.HandleFunc("POST /logout", a.auth(a.logout))
+	mux.HandleFunc("GET /", a.auth(a.home))
+	mux.HandleFunc("GET /day", a.auth(a.dayPage))
+	mux.HandleFunc("POST /day", a.auth(a.saveDay))
+	mux.HandleFunc("GET /calendar", a.auth(a.calendar))
+	mux.HandleFunc("GET /trends", a.auth(a.trends))
+	mux.HandleFunc("GET /settings", a.auth(a.settings))
+	mux.HandleFunc("POST /push/subscribe", a.auth(a.subscribePush))
+	mux.HandleFunc("POST /push/unsubscribe", a.auth(a.unsubscribePush))
+	mux.HandleFunc("GET /habits", a.auth(a.habits))
+	mux.HandleFunc("POST /habits", a.auth(a.saveHabit))
+	mux.HandleFunc("POST /habits/reorder", a.auth(a.reorderHabits))
+	mux.HandleFunc("GET /export.csv", a.auth(a.exportCSV))
+	return mux, nil
 }
 
 func (a *App) serviceWorker(w http.ResponseWriter, _ *http.Request) {
@@ -461,11 +473,9 @@ func (a *App) trends(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	page := trendsPage{
-		Data:           template.JS(data), // JSON contains only validated dates and numbers.
-		SleepDays:      sleepDays,
-		CoffeeDays:     coffeeDays,
-		PushAvailable:  a.pushConfigured(),
-		VAPIDPublicKey: a.vapidPublicKey,
+		Data:       template.JS(data), // JSON contains only validated dates and numbers.
+		SleepDays:  sleepDays,
+		CoffeeDays: coffeeDays,
 	}
 	if sleepDays > 0 {
 		page.SleepAverage = strconv.FormatFloat(sleepTotal/float64(sleepDays), 'f', 2, 64) + " h"
@@ -478,6 +488,13 @@ func (a *App) trends(w http.ResponseWriter, r *http.Request) {
 		page.CoffeeAverage = "—"
 	}
 	a.render(w, "trends.html", page)
+}
+
+func (a *App) settings(w http.ResponseWriter, _ *http.Request) {
+	a.render(w, "settings.html", settingsPage{
+		PushAvailable:  a.pushConfigured(),
+		VAPIDPublicKey: a.vapidPublicKey,
+	})
 }
 
 func (a *App) habits(w http.ResponseWriter, r *http.Request) {

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Paramètres · Praxis</title>
+  <meta name="theme-color" content="#191b17">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Praxis">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/push.js?v=1" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/day">Praxis</a>
+    <nav aria-label="Navigation principale">
+      <a href="/day">Journée</a>
+      <a href="/calendar">Calendrier</a>
+      <a href="/trends">Tendances</a>
+      <a href="/habits">Habitudes</a>
+      <a aria-current="page" href="/settings">Paramètres</a>
+    </nav>
+    <form method="post" action="/logout"><button class="link-button" type="submit">Sortir</button></form>
+  </header>
+
+  <main class="page narrow">
+    <section class="section-heading">
+      <div>
+        <p class="eyebrow">PRÉFÉRENCES</p>
+        <h1>Paramètres</h1>
+      </div>
+    </section>
+
+    <section class="notification-card" data-push-available="{{.PushAvailable}}" data-vapid-key="{{.VAPIDPublicKey}}">
+      <div>
+        <p class="eyebrow">RAPPEL</p>
+        <h2>Notification à 20 h</h2>
+        <p class="muted">Ce navigateur peut te rappeler les mesures manquantes. Chaque appareil s’abonne séparément. Sur iPhone ou iPad, ajoute d’abord Praxis à l’écran d’accueil.</p>
+        <p id="push-status" class="push-status" aria-live="polite"></p>
+      </div>
+      {{if .PushAvailable}}<button id="push-toggle" type="button">Activer sur cet appareil</button>{{else}}<span class="status">Indisponible</span>{{end}}
+    </section>
+
+    <noscript><p class="alert">JavaScript est requis pour gérer les notifications.</p></noscript>
+  </main>
+</body>
+</html>
