@@ -7,7 +7,20 @@ if (picker && dateInput) {
   dateInput.addEventListener('change', () => {
     if (dateInput.value && dateInput.checkValidity()) picker.requestSubmit();
   });
+  // The input covers the title. Desktop browsers only open the picker from
+  // their small icon, so open it on any click.
+  dateInput.addEventListener('click', () => {
+    try { dateInput.showPicker?.(); } catch { /* already open or not allowed */ }
+  });
 }
+
+// Keep "x / n faites" in step with the checkboxes.
+const doneCount = document.querySelector('[data-done-count]');
+const habitBoxes = document.querySelectorAll('input[name="habit"]');
+const updateDoneCount = () => {
+  if (doneCount) doneCount.textContent = String([...habitBoxes].filter((box) => box.checked).length);
+};
+habitBoxes.forEach((box) => box.addEventListener('change', updateDoneCount));
 
 const stateLabels = {
   missing: 'Non enregistré',

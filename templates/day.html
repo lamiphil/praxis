@@ -1,52 +1,33 @@
 <!doctype html>
 <html lang="fr">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Journée · Praxis</title>
-  <meta name="theme-color" content="#191b17">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Praxis">
-  <link rel="manifest" href="/static/manifest.webmanifest">
-  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/static/style.css?v=2">
-  <script src="/static/day.js?v=2" defer></script>
+{{template "head" "Journée"}}
+  <script src="/static/day.js?v=3" defer></script>
 </head>
 <body>
-  <header class="site-header">
-    <a class="brand" href="/day">Praxis</a>
-    <nav aria-label="Navigation principale">
-      <a aria-current="page" href="/day">Journée</a>
-      <a href="/calendar">Calendrier</a>
-      <a href="/trends">Tendances</a>
-      <a href="/habits">Habitudes</a>
-      <a href="/measurements">Mesures</a>
-      <a href="/settings">Paramètres</a>
-    </nav>
-    <form method="post" action="/logout"><button class="link-button" type="submit">Sortir</button></form>
-  </header>
+{{template "nav" "day"}}
 
-  <main class="page narrow">
-    <section class="date-nav" aria-label="Choisir la journée">
-      <a class="icon-button" href="/day?date={{.Previous}}" aria-label="Journée précédente">←</a>
+  <main id="main" class="page narrow">
+    <header class="day-header">
+      <a class="icon-button" href="/day?date={{.Previous}}" aria-label="Journée précédente"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a>
       <form method="get" action="/day" class="date-picker">
-        <input aria-label="Date" type="date" name="date" value="{{.Day.Date}}" max="{{.Today}}">
-        <button type="submit">Voir</button>
+        <p class="eyebrow">{{.DateEyebrow}}</p>
+        <h1 class="day-title">{{.DateLabel}}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></h1>
+        <input class="date-input" aria-label="Choisir une autre date" type="date" name="date" value="{{.Day.Date}}" max="{{.Today}}">
+        <noscript><button type="submit">Voir</button></noscript>
       </form>
-      {{if .CanGoNext}}<a class="icon-button" href="/day?date={{.Next}}" aria-label="Journée suivante">→</a>{{else}}<span class="icon-button disabled" aria-hidden="true">→</span>{{end}}
-    </section>
+      {{if .CanGoNext}}<a class="icon-button" href="/day?date={{.Next}}" aria-label="Journée suivante"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></a>{{else}}<span class="icon-button disabled" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></span>{{end}}
+    </header>
 
     <form method="post" action="/day" class="stack large-gap">
       <input type="hidden" name="date" value="{{.Day.Date}}">
 
-      <section>
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">INTENTIONS</p>
-            <h1>Qu’as-tu honoré?</h1>
-          </div>
+      <section class="day-block" aria-labelledby="habits-title">
+        <h2 id="habits-title">Qu’as-tu honoré?</h2>
+        <p class="day-meta">
           {{if .Day.Saved}}<span class="status saved">Enregistrée</span>{{else}}<span class="status">À compléter</span>{{end}}
-        </div>
+          {{if .Day.Habits}}<span><span data-done-count>{{.DoneCount}}</span> / {{len .Day.Habits}} faites</span>{{end}}
+        </p>
         <div class="habit-list">
           {{range .Day.Habits}}
           <label class="habit-check">
@@ -64,11 +45,8 @@
       </section>
 
       {{if .Measurements}}
-      <fieldset class="tracker-fieldset">
-        <legend>
-          <span class="eyebrow">MESURES</span>
-          <strong>Comment va ton corps?</strong>
-        </legend>
+      <fieldset class="tracker-fieldset day-block">
+        <legend><span class="legend-title">Comment va ton corps?</span></legend>
         <div class="tracker-grid">
           {{range .Measurements}}
           <div class="tracker-card" data-state="{{.State}}" data-step="{{.Step}}" data-target-min="{{.TargetMin}}" data-target-max="{{.TargetMax}}">
@@ -80,7 +58,7 @@
             <div class="stepper">
               <button type="button" data-direction="-1" aria-label="Diminuer {{.Name}}">−</button>
               <div class="tracker-input">
-                <input id="m-{{.ID}}" name="m_{{.ID}}" type="number" min="{{.Min}}" max="{{.Max}}" step="{{.Step}}" inputmode="{{if .Integer}}numeric{{else}}decimal{{end}}" value="{{.Value}}"{{if .Hint}} aria-describedby="m-{{.ID}}-hint"{{end}}>
+                <input id="m-{{.ID}}" name="m_{{.ID}}" type="number" min="{{.Min}}" max="{{.Max}}" step="{{.Step}}" inputmode="{{if .Integer}}numeric{{else}}decimal{{end}}" value="{{.Value}}" placeholder="—"{{if .Hint}} aria-describedby="m-{{.ID}}-hint"{{end}}>
                 {{if .Unit}}<span aria-hidden="true">{{.Unit}}</span>{{end}}
               </div>
               <button type="button" data-direction="1" aria-label="Augmenter {{.Name}}">+</button>
@@ -93,19 +71,18 @@
       </fieldset>
       {{end}}
 
-      <fieldset class="rating-fieldset">
-        <legend>
-          <span class="eyebrow">JOURNÉE</span>
-          <strong>Comment était ta journée?</strong>
-        </legend>
+      <fieldset class="rating-fieldset day-block">
+        <legend><span class="legend-title">Comment était ta journée?</span></legend>
         <div class="rating-options">
-          <label><input type="radio" name="rating" value="" {{if .NoneSelected}}checked{{end}}><span>—</span></label>
+          <label><input type="radio" name="rating" value="" {{if .NoneSelected}}checked{{end}}><span><span aria-hidden="true">—</span><span class="visually-hidden">Sans note</span></span></label>
           {{range .Ratings}}<label><input type="radio" name="rating" value="{{.Value}}" {{if .Selected}}checked{{end}}><span>{{.Value}}</span></label>{{end}}
         </div>
         <p class="hint">1 = très difficile · 13 = excellente</p>
       </fieldset>
 
-      <button class="primary-action" type="submit">Enregistrer la journée</button>
+      <div class="save-bar">
+        <button class="primary-action" type="submit">Enregistrer la journée</button>
+      </div>
     </form>
   </main>
 </body>
