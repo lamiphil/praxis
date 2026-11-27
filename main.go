@@ -115,20 +115,28 @@ type habitsPage struct {
 }
 
 type trendMeasurement struct {
-	Key       string     `json:"key"`
-	Name      string     `json:"name"`
-	Unit      string     `json:"unit"`
-	Integer   bool       `json:"integer"`
-	Min       float64    `json:"min"`
-	Max       float64    `json:"max"`
-	TargetMin *float64   `json:"targetMin"`
-	TargetMax *float64   `json:"targetMax"`
-	Values    []*float64 `json:"values"`
+	Key        string     `json:"key"`
+	Name       string     `json:"name"`
+	Unit       string     `json:"unit"`
+	Integer    bool       `json:"integer"`
+	Min        float64    `json:"min"`
+	Max        float64    `json:"max"`
+	TargetMin  *float64   `json:"targetMin"`
+	TargetMax  *float64   `json:"targetMax"`
+	Values     []*float64 `json:"values"`
+	Archived   bool       `json:"archived"`
+	ArchivedOn string     `json:"archivedOn,omitempty"`
+}
+
+// trendRating carries the day rating (1–13) per date, with nil for gaps.
+type trendRating struct {
+	Values []*int `json:"values"`
 }
 
 type trendData struct {
 	Dates        []string           `json:"dates"`
 	Measurements []trendMeasurement `json:"measurements"`
+	Rating       *trendRating       `json:"rating,omitempty"`
 }
 
 type trendSummary struct {
@@ -137,11 +145,24 @@ type trendSummary struct {
 	Average     string
 	Days        int
 	TargetLabel string
+	Archived    bool
+	ArchivedOn  string
+}
+
+type trendRange struct {
+	Days    int
+	Current bool
+	Href    string
 }
 
 type trendsPage struct {
-	Data      template.JS
-	Summaries []trendSummary
+	Data         template.JS
+	Summaries    []trendSummary
+	Rating       *trendSummary
+	Range        int
+	ShowArchived bool
+	Ranges       []trendRange
+	ArchivedHref string
 }
 
 type settingsPage struct {
@@ -486,29 +507,69 @@ func (a *App) trends(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
-	from := today.AddDate(0, 0, -29)
-	measurements, err := a.store.ActiveMeasurements()
+	rangeDays := 30
+	switch r.URL.Query().Get("range") {
+	case "7":
+		rangeDays = 7
+	case "90":
+		rangeDays = 90
+	}
+	showArchived := r.URL.Query().Get("archived") == "1"
+	from := today.AddDate(0, 0, -(rangeDays - 1))
+	fromISO := from.Format("2006-01-02")
+	todayISO := today.Format("2006-01-02")
+
+	var measurements []Measurement
+	if showArchived {
+		measurements, err = a.store.Measurements()
+	} else {
+		measurements, err = a.store.ActiveMeasurements()
+	}
 	if err != nil {
 		a.serverError(w, err)
 		return
 	}
-	values, err := a.store.MeasurementValues(from.Format("2006-01-02"), today.Format("2006-01-02"))
+	var values []MeasurementValue
+	if showArchived {
+		values, err = a.store.MeasurementValuesAll(fromISO, todayISO)
+	} else {
+		values, err = a.store.MeasurementValues(fromISO, todayISO)
+	}
 	if err != nil {
 		a.serverError(w, err)
 		return
 	}
-	data := trendData{Dates: make([]string, 30)}
-	dateIndex := make(map[string]int, 30)
+	ratings, err := a.store.RatingTrend(fromISO, todayISO)
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+
+	data := trendData{Dates: make([]string, rangeDays)}
+	dateIndex := make(map[string]int, rangeDays)
 	for i := range data.Dates {
 		data.Dates[i] = from.AddDate(0, 0, i).Format("2006-01-02")
 		dateIndex[data.Dates[i]] = i
+	}
+
+	var archivedIDs []int64
+	for _, m := range measurements {
+		if m.Archived {
+			archivedIDs = append(archivedIDs, m.ID)
+		}
+	}
+	archiveDates, err := a.store.ArchivedMeasurementDates(archivedIDs)
+	if err != nil {
+		a.serverError(w, err)
+		return
 	}
 	series := make(map[int64]*trendMeasurement, len(measurements))
 	for _, m := range measurements {
 		data.Measurements = append(data.Measurements, trendMeasurement{
 			Key: m.Key, Name: m.Name, Unit: m.Unit, Integer: m.Integer(),
 			Min: m.Min, Max: m.Max, TargetMin: m.TargetMin, TargetMax: m.TargetMax,
-			Values: make([]*float64, 30),
+			Values: make([]*float64, rangeDays), Archived: m.Archived,
+			ArchivedOn: archiveDates[m.ID],
 		})
 	}
 	for i, m := range measurements {
@@ -516,12 +577,21 @@ func (a *App) trends(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, value := range values {
 		if item, ok := series[value.MeasurementID]; ok {
-			item.Values[dateIndex[value.Date]] = &value.Value
+			idx, ok := dateIndex[value.Date]
+			if !ok {
+				continue
+			}
+			v := value.Value
+			item.Values[idx] = &v
 		}
 	}
-	page := trendsPage{}
+
+	page := trendsPage{Range: rangeDays, ShowArchived: showArchived}
 	for i, m := range measurements {
-		summary := trendSummary{Key: m.Key, Name: m.Name, Average: "—", TargetLabel: targetLabel(m)}
+		summary := trendSummary{
+			Key: m.Key, Name: m.Name, Average: "—", TargetLabel: targetLabel(m),
+			Archived: m.Archived, ArchivedOn: archiveDates[m.ID],
+		}
 		var total float64
 		for _, value := range data.Measurements[i].Values {
 			if value != nil {
@@ -537,6 +607,42 @@ func (a *App) trends(w http.ResponseWriter, r *http.Request) {
 		}
 		page.Summaries = append(page.Summaries, summary)
 	}
+
+	if len(ratings) > 0 {
+		ratingValues := make([]*int, rangeDays)
+		var ratingSum, ratingDays int
+		for _, point := range ratings {
+			idx, ok := dateIndex[point.Date]
+			if !ok {
+				continue
+			}
+			v := point.Rating
+			ratingValues[idx] = &v
+			ratingSum += v
+			ratingDays++
+		}
+		if ratingDays > 0 {
+			data.Rating = &trendRating{Values: ratingValues}
+			page.Rating = &trendSummary{
+				Key: "__rating__", Name: "Note de la journée",
+				Average: strconv.FormatFloat(float64(ratingSum)/float64(ratingDays), 'f', 1, 64),
+				Days:    ratingDays,
+			}
+		}
+	}
+
+	for _, n := range []int{7, 30, 90} {
+		href := "/trends?range=" + strconv.Itoa(n)
+		if showArchived {
+			href += "&archived=1"
+		}
+		page.Ranges = append(page.Ranges, trendRange{Days: n, Current: n == rangeDays, Href: href})
+	}
+	page.ArchivedHref = "/trends?range=" + strconv.Itoa(rangeDays)
+	if !showArchived {
+		page.ArchivedHref += "&archived=1"
+	}
+
 	encoded, err := json.Marshal(data)
 	if err != nil {
 		a.serverError(w, err)

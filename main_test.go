@@ -259,6 +259,87 @@ func TestMeasurementRoutes(t *testing.T) {
 	}
 }
 
+func TestTrendsRatingAndArchived(t *testing.T) {
+	app, mux := testApp(t)
+
+	// A measurement that will stay active, and one we will archive.
+	for _, form := range []url.Values{
+		{"name": {"Pas"}, "unit": {""}, "step": {"1"}, "min": {"0"}, "max": {"50000"}},
+		{"name": {"Cafés"}, "unit": {""}, "step": {"1"}, "min": {"0"}, "max": {"10"}},
+	} {
+		if response := serve(t, mux, http.MethodPost, "/measurements", form); response.Code != http.StatusSeeOther {
+			t.Fatalf("create measurement returned %d: %s", response.Code, response.Body)
+		}
+	}
+	steps := measurementByKey(t, app.store, "pas")
+	cafes := measurementByKey(t, app.store, "cafes")
+
+	// Save a day on 2026-11-14 with rating 8, steps = 9000 and 2 coffees.
+	stepsID := strconv.FormatInt(steps.ID, 10)
+	cafesID := strconv.FormatInt(cafes.ID, 10)
+	if response := serve(t, mux, http.MethodPost, "/day", url.Values{
+		"date":        {"2026-11-14"},
+		"rating":      {"8"},
+		"measurement": {stepsID, cafesID},
+		"m_" + stepsID: {"9000"},
+		"m_" + cafesID: {"2"},
+	}); response.Code != http.StatusSeeOther {
+		t.Fatalf("save day returned %d: %s", response.Code, response.Body)
+	}
+	// Archive "Cafés" through the SaveMeasurement store (the form path keeps
+	// the values; here we go straight to the store to keep the test short).
+	cafes.Archived = true
+	if err := app.store.SaveMeasurement(cafes); err != nil {
+		t.Fatalf("archive cafes: %v", err)
+	}
+
+	body := serve(t, mux, http.MethodGet, "/trends", nil).Body.String()
+	if !strings.Contains(body, `data-chart="__rating__"`) {
+		t.Fatal("trends is missing the rating chart")
+	}
+	if !strings.Contains(body, `"rating":{"values":[`) {
+		t.Fatal("trends data has no rating series")
+	}
+	if strings.Contains(body, `data-chart="cafes"`) {
+		t.Fatal("trends shows archived measurement without the toggle")
+	}
+	if !strings.Contains(body, `href="/trends?range=30&amp;archived=1"`) {
+		t.Fatal("trends is missing the archived toggle link")
+	}
+
+	withArchived := serve(t, mux, http.MethodGet, "/trends?archived=1", nil).Body.String()
+	if !strings.Contains(withArchived, `data-chart="cafes"`) {
+		t.Fatal("trends ?archived=1 does not render the archived measurement")
+	}
+	if !strings.Contains(withArchived, `archivée`) {
+		t.Fatal("archived label is missing from the summary")
+	}
+	if !strings.Contains(withArchived, `aria-pressed="true"`) {
+		t.Fatal("archived toggle is not shown as pressed")
+	}
+
+	seven := serve(t, mux, http.MethodGet, "/trends?range=7", nil).Body.String()
+	if !strings.Contains(seven, `7 DERNIERS JOURS`) {
+		t.Fatal("trends ?range=7 did not switch the range")
+	}
+	if strings.Count(seven, `"2026-11-`) < 7 {
+		t.Fatal("trends ?range=7 has fewer than 7 dates")
+	}
+
+	bad := serve(t, mux, http.MethodGet, "/trends?range=12", nil).Body.String()
+	if !strings.Contains(bad, `30 DERNIERS JOURS`) {
+		t.Fatal("an unknown range should fall back to 30 days")
+	}
+
+	// No rating recorded in the 7 day window ending on 2026-11-07 yet, so the
+	// chart hides itself to avoid a flat line of gaps.
+	app.now = func() time.Time { return time.Date(2026, 11, 7, 12, 0, 0, 0, app.location) }
+	empty := serve(t, mux, http.MethodGet, "/trends?range=7", nil).Body.String()
+	if strings.Contains(empty, `data-chart="__rating__"`) {
+		t.Fatal("rating chart was drawn with no recorded rating")
+	}
+}
+
 func TestDueReminderSendsOncePerSubscription(t *testing.T) {
 	store := testStore(t)
 	if err := store.UpsertPushSubscription(PushSubscription{Endpoint: "https://push.example/one", P256DH: "key", Auth: "auth"}); err != nil {

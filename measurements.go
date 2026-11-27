@@ -383,6 +383,62 @@ ORDER BY v.day_date`, from, until)
 	return result, rows.Err()
 }
 
+// MeasurementValuesAll returns values between two dates, archived
+// measurements included. Use it on the Tendances page when the user asks
+// to include archived measurements.
+func (s *Store) MeasurementValuesAll(from, until string) ([]MeasurementValue, error) {
+	rows, err := s.db.Query(`
+SELECT v.day_date, v.measurement_id, v.value
+FROM measurement_values v
+WHERE v.day_date BETWEEN ? AND ?
+ORDER BY v.day_date`, from, until)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var result []MeasurementValue
+	for rows.Next() {
+		var value MeasurementValue
+		if err := rows.Scan(&value.Date, &value.MeasurementID, &value.Value); err != nil {
+			return nil, err
+		}
+		result = append(result, value)
+	}
+	return result, rows.Err()
+}
+
+// ArchivedMeasurementDates returns the archive date (YYYY-MM-DD, UTC) of the
+// given measurement ids. Non-archived ids are absent from the result.
+func (s *Store) ArchivedMeasurementDates(ids []int64) (map[int64]string, error) {
+	if len(ids) == 0 {
+		return map[int64]string{}, nil
+	}
+	placeholders := strings.TrimRight(strings.Repeat("?,", len(ids)), ",")
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	rows, err := s.db.Query(
+		`SELECT id, DATE(archived_at) FROM measurements WHERE archived_at IS NOT NULL AND id IN (`+placeholders+`)`,
+		args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make(map[int64]string, len(ids))
+	for rows.Next() {
+		var id int64
+		var date sql.NullString
+		if err := rows.Scan(&id, &date); err != nil {
+			return nil, err
+		}
+		if date.Valid {
+			result[id] = date.String
+		}
+	}
+	return result, rows.Err()
+}
+
 // MeasurementExportRows returns every recorded value, archived measurements included.
 func (s *Store) MeasurementExportRows() ([]MeasurementExportRow, error) {
 	rows, err := s.db.Query(`

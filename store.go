@@ -249,6 +249,33 @@ ORDER BY h.position, h.id`, date, date, date)
 	return day, rows.Err()
 }
 
+// RatingPoint is a recorded day rating. Unrecorded days are not returned so
+// the Tendances page can draw gaps instead of fake zeros.
+type RatingPoint struct {
+	Date   string
+	Rating int
+}
+
+// RatingTrend returns recorded day ratings between two ISO dates (inclusive).
+func (s *Store) RatingTrend(from, until string) ([]RatingPoint, error) {
+	rows, err := s.db.Query(
+		`SELECT date, rating FROM days WHERE rating IS NOT NULL AND date BETWEEN ? AND ? ORDER BY date`,
+		from, until)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var result []RatingPoint
+	for rows.Next() {
+		var point RatingPoint
+		if err := rows.Scan(&point.Date, &point.Rating); err != nil {
+			return nil, err
+		}
+		result = append(result, point)
+	}
+	return result, rows.Err()
+}
+
 func (s *Store) SaveDay(date, today string, rating *int, values map[int64]*float64, doneIDs map[int64]bool) error {
 	if !validISODate(date) || date > today {
 		return errors.New("invalid day date")

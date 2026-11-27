@@ -133,11 +133,21 @@ function fillTable() {
   });
 }
 
+const ratingChartModel = () => ({
+  key: '__rating__', name: 'Note', unit: '', integer: true,
+  min: 1, max: 13, targetMin: null, targetMax: null,
+  values: data.rating.values.map((value) => (value == null ? null : Number(value))),
+});
+
 function drawAll() {
   data.measurements.forEach((measurement) => {
     const container = document.querySelector(`[data-chart="${CSS.escape(measurement.key)}"]`);
     if (container) drawChart(container, measurement);
   });
+  if (data.rating) {
+    const container = document.querySelector('[data-chart="__rating__"]');
+    if (container) drawChart(container, ratingChartModel());
+  }
 }
 
 drawAll();

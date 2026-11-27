@@ -10,48 +10,91 @@
   <main id="main" class="page trends-page">
     <section class="section-heading">
       <div>
-        <p class="eyebrow">30 DERNIERS JOURS</p>
+        <p class="eyebrow">{{.Range}} DERNIERS JOURS</p>
         <h1>Tendances</h1>
-        <p class="muted">Les jours sans mesure restent vides et ne comptent pas dans les moyennes.</p>
+        <p class="muted">Les jours sans donnée restent vides et ne comptent pas dans les moyennes.</p>
+      </div>
+      <div class="trends-controls">
+        <div class="range-switch" role="group" aria-label="Plage de temps">
+          {{range .Ranges}}
+            {{if .Current}}
+              <span class="range-current" aria-current="true">{{.Days}} j</span>
+            {{else}}
+              <a href="{{.Href}}">{{.Days}} j</a>
+            {{end}}
+          {{end}}
+        </div>
+        <a class="archived-toggle" href="{{.ArchivedHref}}" aria-pressed="{{if .ShowArchived}}true{{else}}false{{end}}">
+          {{if .ShowArchived}}✓ Mesures archivées incluses{{else}}Inclure les mesures archivées{{end}}
+        </a>
       </div>
     </section>
+
+    {{if or .Summaries .Rating}}
+    <script id="trend-data" type="application/json">{{.Data}}</script>
+
+    {{with .Rating}}
+    <div class="summary-grid">
+      <article class="summary-card">
+        <span>{{.Name}} (moyenne)</span>
+        <strong>{{.Average}}</strong>
+        <small>{{.Days}} jour(s) enregistré(s)</small>
+      </article>
+    </div>
+    <section class="chart-card" aria-labelledby="chart-rating-title">
+      <div class="chart-heading">
+        <div>
+          <p class="eyebrow">JOURNÉE</p>
+          <h2 id="chart-rating-title">{{.Name}}</h2>
+        </div>
+        <span class="goal-key">1 = très difficile · 13 = excellente</span>
+      </div>
+      <div class="chart" data-chart="__rating__" role="img" aria-label="Note de la journée"></div>
+    </section>
+    {{end}}
 
     {{if .Summaries}}
     <div class="summary-grid">
       {{range .Summaries}}
-      <article class="summary-card">
+      <article class="summary-card{{if .Archived}} is-archived{{end}}">
         <span>{{.Name}} (moyenne)</span>
         <strong>{{.Average}}</strong>
-        <small>{{.Days}} jour(s) enregistré(s){{if .TargetLabel}} · {{.TargetLabel}}{{end}}</small>
+        <small>{{.Days}} jour(s) enregistré(s){{if .TargetLabel}} · {{.TargetLabel}}{{end}}{{if .Archived}} · archivée{{if .ArchivedOn}} le {{.ArchivedOn}}{{end}}{{end}}</small>
       </article>
       {{end}}
     </div>
 
-    <script id="trend-data" type="application/json">{{.Data}}</script>
     {{range .Summaries}}
-    <section class="chart-card" aria-labelledby="chart-{{.Key}}-title">
+    <section class="chart-card{{if .Archived}} is-archived{{end}}" aria-labelledby="chart-{{.Key}}-title">
       <div class="chart-heading">
         <div>
-          <p class="eyebrow">MESURE</p>
+          <p class="eyebrow">MESURE{{if .Archived}} ARCHIVÉE{{end}}</p>
           <h2 id="chart-{{.Key}}-title">{{.Name}}</h2>
         </div>
         {{if .TargetLabel}}<span class="goal-key">{{.TargetLabel}}</span>{{end}}
       </div>
-      <div class="chart" data-chart="{{.Key}}" role="img" aria-label="{{.Name}} des 30 derniers jours"></div>
+      <div class="chart" data-chart="{{.Key}}" role="img" aria-label="{{.Name}} des {{$.Range}} derniers jours"></div>
     </section>
+    {{end}}
     {{end}}
 
     <details class="data-details">
       <summary>Voir les valeurs exactes</summary>
       <div class="table-scroll">
         <table id="trend-table">
-          <thead><tr><th>Date</th>{{range .Summaries}}<th>{{.Name}}</th>{{end}}</tr></thead>
+          <thead>
+            <tr>
+              <th>Date</th>
+              {{if .Rating}}<th>Note</th>{{end}}
+              {{range .Summaries}}<th>{{.Name}}{{if .Archived}} (archivée){{end}}</th>{{end}}
+            </tr>
+          </thead>
           <tbody></tbody>
         </table>
       </div>
     </details>
     {{else}}
-    <p class="empty">Aucune mesure active. Ajoute-en une dans <a href="/measurements">Mesures</a>.</p>
+    <p class="empty">Aucune donnée pour cette période. Ajoute une mesure dans <a href="/measurements">Mesures</a> ou note la journée.</p>
     {{end}}
 
     <noscript><p class="alert">JavaScript est requis pour afficher les graphiques.</p></noscript>
