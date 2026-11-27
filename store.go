@@ -352,6 +352,16 @@ func (s *Store) SaveHabit(habit Habit) error {
 			return errors.New("invalid active_until date")
 		}
 	}
+	// Keep current position when editing and position is 0 (not provided).
+	if habit.Position == 0 && habit.ID != 0 {
+		var currentPos int
+		err := s.db.QueryRow(`SELECT position FROM habits WHERE id = ?`, habit.ID).Scan(&currentPos)
+		if err != nil {
+			return fmt.Errorf("could not fetch current position: %w", err)
+		}
+		habit.Position = currentPos
+	}
+	// Use NextPosition for new habits when position is 0 or not provided.
 	if habit.Position < 1 {
 		habit.Position = 1
 	}

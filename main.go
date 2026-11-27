@@ -572,10 +572,17 @@ func (a *App) saveHabit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "identifiant invalide", http.StatusBadRequest)
 		return
 	}
-	position, err := strconv.Atoi(r.FormValue("position"))
-	if err != nil {
-		http.Error(w, "ordre invalide", http.StatusBadRequest)
-		return
+	// Position: when editing (id is set) and position is not provided,
+	// pass 0 as a marker to SaveHabit to keep the current position.
+	positionStr := r.FormValue("position")
+	position := 0
+	if positionStr != "" {
+		p, err := strconv.Atoi(positionStr)
+		if err != nil {
+			http.Error(w, "ordre invalide", http.StatusBadRequest)
+			return
+		}
+		position = p
 	}
 	habit := Habit{
 		ID:          id,

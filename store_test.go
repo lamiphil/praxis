@@ -122,6 +122,36 @@ func TestReorderHabits(t *testing.T) {
 	}
 }
 
+func TestEditHabitWithZeroPositionKeepsCurrentPosition(t *testing.T) {
+	store := testStore(t)
+	habits, err := store.Habits()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// habits[0] should have Position 1 initially
+	if habits[0].Position != 1 {
+		t.Fatalf("expected initial position 1, got %d", habits[0].Position)
+	}
+	// Edit the habit with Position 0 (simulating missing form field)
+	habit := habits[0]
+	habit.Name = "Modified Name"
+	habit.Position = 0 // Indicate "keep current position"
+	if err := store.SaveHabit(habit); err != nil {
+		t.Fatal(err)
+	}
+	// Check that position was preserved
+	reloaded, err := store.Habits()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded[0].Position != 1 {
+		t.Fatalf("expected position to remain 1, got %d", reloaded[0].Position)
+	}
+	if reloaded[0].Name != "Modified Name" {
+		t.Fatalf("expected name to be updated to 'Modified Name', got %q", reloaded[0].Name)
+	}
+}
+
 func measurementByKey(t *testing.T, store *Store, key string) Measurement {
 	t.Helper()
 	measurements, err := store.Measurements()

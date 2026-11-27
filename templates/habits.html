@@ -65,7 +65,6 @@
           <input type="hidden" name="id" value="{{.ID}}">
           <label>Nom<input name="name" value="{{.Name}}" required maxlength="80"></label>
           <label class="wide">Critère de réussite<input name="criterion" value="{{.Criterion}}" maxlength="200"></label>
-          <label>Ordre<input name="position" type="number" min="1" value="{{.Position}}" required></label>
           <label>Active dès<input name="active_from" type="date" value="{{.ActiveFrom}}" required></label>
           <label>Archivée le<input name="active_until" type="date" value="{{.ActiveUntil}}"></label>
           <button type="submit">Enregistrer</button>
