@@ -40,15 +40,19 @@ function axis(measurement) {
   return { low, top, ticks };
 }
 
+const months = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+const shortDate = (iso) => `${Number(iso.slice(8))} ${months[Number(iso.slice(5, 7)) - 1]}`;
+
+// Drawn at the container's pixel width so text keeps its CSS size on phones.
 function drawChart(container, measurement) {
-  const width = 900;
-  const height = 260;
-  const margin = { top: 18, right: 18, bottom: 38, left: 44 };
+  const width = Math.max(260, Math.round(container.clientWidth || 900));
+  const height = width < 520 ? 190 : 240;
+  const margin = { top: 14, right: 12, bottom: 30, left: 36 };
   const plotWidth = width - margin.left - margin.right;
   const plotHeight = height - margin.top - margin.bottom;
   const { low, top, ticks } = axis(measurement);
   const count = data.dates.length;
-  const svg = svgElement('svg', { viewBox: `0 0 ${width} ${height}`, 'aria-hidden': 'true' });
+  const svg = svgElement('svg', { viewBox: `0 0 ${width} ${height}`, width, height, 'aria-hidden': 'true' });
   const x = (index) => margin.left + (index / (count - 1)) * plotWidth;
   const y = (value) => margin.top + plotHeight - ((Math.min(value, top) - low) / (top - low)) * plotHeight;
 
@@ -66,9 +70,12 @@ function drawChart(container, measurement) {
     if (target == null) return;
     svg.append(svgElement('line', { x1: margin.left, y1: y(target), x2: width - margin.right, y2: y(target), class: 'goal-line' }));
   });
+  // One label per ~64px, always ending on the last day.
+  const every = Math.max(1, Math.ceil(count / Math.floor(plotWidth / 64)));
   data.dates.forEach((date, index) => {
-    if (index % 5 !== 0 && index !== count - 1) return;
-    addText(svg, x(index), height - 12, date.slice(5));
+    const last = index === count - 1;
+    if (!last && ((count - 1 - index) % every !== 0 || count - 1 - index < every)) return;
+    addText(svg, x(index), height - 10, shortDate(date), last ? 'end' : 'middle');
   });
 
   const stateClass = (value, kind) => {
@@ -77,7 +84,7 @@ function drawChart(container, measurement) {
   };
 
   if (measurement.integer) {
-    const barWidth = Math.max(5, plotWidth / count - 5);
+    const barWidth = Math.max(3, Math.min(18, plotWidth / count * 0.6));
     measurement.values.forEach((value, index) => {
       if (value == null) return;
       svg.append(svgElement('rect', {
@@ -99,7 +106,7 @@ function drawChart(container, measurement) {
         return;
       }
       segment.push([x(index), y(value)]);
-      points.push(svgElement('circle', { cx: x(index), cy: y(value), r: 4, class: stateClass(value, 'point') }));
+      points.push(svgElement('circle', { cx: x(index), cy: y(value), r: width < 520 ? 3 : 4, class: stateClass(value, 'point') }));
     });
     flush();
     svg.append(...points);
@@ -126,8 +133,19 @@ function fillTable() {
   });
 }
 
-data.measurements.forEach((measurement) => {
-  const container = document.querySelector(`[data-chart="${CSS.escape(measurement.key)}"]`);
-  if (container) drawChart(container, measurement);
-});
+function drawAll() {
+  data.measurements.forEach((measurement) => {
+    const container = document.querySelector(`[data-chart="${CSS.escape(measurement.key)}"]`);
+    if (container) drawChart(container, measurement);
+  });
+}
+
+drawAll();
 fillTable();
+let lastWidth = document.documentElement.clientWidth;
+window.addEventListener('resize', () => {
+  const widthNow = document.documentElement.clientWidth;
+  if (widthNow === lastWidth) return;
+  lastWidth = widthNow;
+  requestAnimationFrame(drawAll);
+});
