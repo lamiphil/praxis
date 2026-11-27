@@ -410,6 +410,74 @@ WHERE id = ?`, habit.Name, habit.Criterion, habit.Position, habit.ActiveFrom, ac
 
 func (s *Store) ReorderHabits(ids []int64) error { return s.reorder("habits", ids) }
 
+// ArchiveHabit sets active_until to today for the given habit.
+// It refuses if the habit's active_from is in the future or if there are
+// recorded values after today (which should not happen, since the app
+// rejects future days).
+func (s *Store) ArchiveHabit(id int64, today string) error {
+	if id <= 0 {
+		return errors.New("invalid habit id")
+	}
+	if !validISODate(today) {
+		return errors.New("invalid today date")
+	}
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var activeFrom string
+	if err := tx.QueryRow(`SELECT active_from FROM habits WHERE id = ?`, id).Scan(&activeFrom); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return sql.ErrNoRows
+		}
+		return err
+	}
+	if today < activeFrom {
+		return errors.New("la date d’archivage précède la date de début")
+	}
+	var conflicting int
+	if err := tx.QueryRow(`
+SELECT COUNT(*) FROM habit_values WHERE habit_id = ? AND day_date > ?`, id, today).Scan(&conflicting); err != nil {
+		return err
+	}
+	if conflicting > 0 {
+		return errors.New("la période exclut des données déjà enregistrées")
+	}
+	result, err := tx.Exec(`UPDATE habits SET active_until = ? WHERE id = ?`, today, id)
+	if err != nil {
+		return err
+	}
+	changed, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if changed == 0 {
+		return sql.ErrNoRows
+	}
+	return tx.Commit()
+}
+
+// ReactivateHabit clears active_until. It only extends the active range
+// forward, so no recorded value is ever hidden.
+func (s *Store) ReactivateHabit(id int64) error {
+	if id <= 0 {
+		return errors.New("invalid habit id")
+	}
+	result, err := s.db.Exec(`UPDATE habits SET active_until = NULL WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+	changed, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if changed == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
 // reorder rewrites positions for every row of table; table is a constant name.
 func (s *Store) reorder(table string, ids []int64) error {
 	if len(ids) == 0 {

@@ -279,6 +279,8 @@ func (a *App) routes() (*http.ServeMux, error) {
 	mux.HandleFunc("GET /habits", a.auth(a.habits))
 	mux.HandleFunc("POST /habits", a.auth(a.saveHabit))
 	mux.HandleFunc("POST /habits/reorder", a.auth(a.reorderHabits))
+	mux.HandleFunc("POST /habits/archive", a.auth(a.archiveHabit))
+	mux.HandleFunc("POST /habits/reactivate", a.auth(a.reactivateHabit))
 	mux.HandleFunc("GET /measurements", a.auth(a.measurements))
 	mux.HandleFunc("POST /measurements", a.auth(a.saveMeasurement))
 	mux.HandleFunc("POST /measurements/delete", a.auth(a.deleteMeasurement))
@@ -593,6 +595,32 @@ func (a *App) saveHabit(w http.ResponseWriter, r *http.Request) {
 		ActiveUntil: r.FormValue("active_until"),
 	}
 	if err := a.store.SaveHabit(habit); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	http.Redirect(w, r, "/habits", http.StatusSeeOther)
+}
+
+func (a *App) archiveHabit(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.FormValue("id"), 10, 64)
+	if err != nil || id <= 0 {
+		http.Error(w, "id manquant", http.StatusBadRequest)
+		return
+	}
+	if err := a.store.ArchiveHabit(id, a.today()); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	http.Redirect(w, r, "/habits", http.StatusSeeOther)
+}
+
+func (a *App) reactivateHabit(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.FormValue("id"), 10, 64)
+	if err != nil || id <= 0 {
+		http.Error(w, "id manquant", http.StatusBadRequest)
+		return
+	}
+	if err := a.store.ReactivateHabit(id); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

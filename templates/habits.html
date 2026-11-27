@@ -65,13 +65,23 @@
           <input type="hidden" name="id" value="{{.ID}}">
           <label>Nom<input name="name" value="{{.Name}}" required maxlength="80"></label>
           <label class="wide">Critère de réussite<input name="criterion" value="{{.Criterion}}" maxlength="200"></label>
-          <label>Active dès<input name="active_from" type="date" value="{{.ActiveFrom}}" required></label>
-          <label>Archivée le<input name="active_until" type="date" value="{{.ActiveUntil}}"></label>
           <button type="submit">Enregistrer</button>
+          <details class="habit-advanced"{{if .ActiveUntil}} data-archived{{end}}>
+            <summary>Dates et archivage{{if .ActiveUntil}} · archivée le {{.ActiveUntil}}{{end}}</summary>
+            <div class="habit-advanced-body">
+              <label>Active dès<input name="active_from" type="date" value="{{.ActiveFrom}}" required></label>
+              <label>Archivée le<input name="active_until" type="date" value="{{.ActiveUntil}}"></label>
+              {{if .ActiveUntil}}
+              <button type="submit" formaction="/habits/reactivate" formnovalidate>Réactiver</button>
+              {{else}}
+              <button type="submit" formaction="/habits/archive" formnovalidate>Archiver aujourd’hui</button>
+              {{end}}
+            </div>
+          </details>
         </form>
         {{end}}
       </div>
-      <p class="hint">Pour réactiver une habitude, vide la date d’archivage. Un changement de sens doit devenir une nouvelle habitude.</p>
+      <p class="hint">Ouvre « Dates et archivage » pour modifier la période. Un changement de sens doit devenir une nouvelle habitude.</p>
     </section>
   </main>
 </body>

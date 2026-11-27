@@ -101,6 +101,70 @@ func TestHabitRangeCannotHideRecordedValues(t *testing.T) {
 	}
 }
 
+func TestArchiveAndReactivateHabit(t *testing.T) {
+	store := testStore(t)
+	habits, err := store.Habits()
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := habits[0].ID
+	if err := store.ArchiveHabit(id, "2026-11-30"); err != nil {
+		t.Fatalf("archive failed: %v", err)
+	}
+	reloaded, err := store.Habits()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded[0].ActiveUntil != "2026-11-30" {
+		t.Fatalf("expected active_until to be set, got %q", reloaded[0].ActiveUntil)
+	}
+	if err := store.ReactivateHabit(id); err != nil {
+		t.Fatalf("reactivate failed: %v", err)
+	}
+	reloaded, err = store.Habits()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded[0].ActiveUntil != "" {
+		t.Fatalf("expected active_until cleared, got %q", reloaded[0].ActiveUntil)
+	}
+}
+
+func TestArchiveHabitRejectsDateBeforeActiveFrom(t *testing.T) {
+	store := testStore(t)
+	habits, err := store.Habits()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.ArchiveHabit(habits[0].ID, "2020-01-01"); err == nil {
+		t.Fatal("expected archive before active_from to fail")
+	}
+}
+
+func TestArchiveHabitRejectsHidingRecordedValues(t *testing.T) {
+	store := testStore(t)
+	day, err := store.Day("2026-11-15")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveDay("2026-11-15", "2026-11-15", nil, nil, map[int64]bool{day.Habits[0].ID: true}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.ArchiveHabit(day.Habits[0].ID, "2026-11-14"); err == nil {
+		t.Fatal("expected archive hiding a recorded value to fail")
+	}
+}
+
+func TestArchiveUnknownHabit(t *testing.T) {
+	store := testStore(t)
+	if err := store.ArchiveHabit(999999, "2026-11-30"); err == nil {
+		t.Fatal("expected archive of unknown habit to fail")
+	}
+	if err := store.ReactivateHabit(999999); err == nil {
+		t.Fatal("expected reactivate of unknown habit to fail")
+	}
+}
+
 func TestReorderHabits(t *testing.T) {
 	store := testStore(t)
 	habits, err := store.Habits()
