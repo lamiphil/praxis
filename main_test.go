@@ -72,6 +72,11 @@ func TestSettingsRouteContainsReminderAndTrendsDoesNot(t *testing.T) {
 		if strings.Contains(body, "Notification à 20 h") != test.wantReminder {
 			t.Errorf("GET %s reminder presence mismatch", test.path)
 		}
+		// The reminder is global since v0.4.0: Paramètres must no longer tell the
+		// user to opt measurements in from the Mesures page.
+		if test.wantReminder && strings.Contains(body, "Choisis les mesures") {
+			t.Errorf("GET %s still carries the per-measurement reminder copy", test.path)
+		}
 		if !strings.Contains(body, `<span>Réglages</span>`) || !strings.Contains(body, test.wantCurrentLink) {
 			t.Errorf("GET %s navigation is incomplete", test.path)
 		}

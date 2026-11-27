@@ -13,7 +13,7 @@ The local version includes:
 - seeded `Sommeil` (0–24 h, quarter-hour precision, target 7–9 h) and `Cafés` (0–20, target 3 or less) measurements;
 - past-day editing through a monthly calendar;
 - rolling 30-day charts, recorded-day counts, and averages for every active measurement;
-- optional per-device Web Push reminders at 20:00 America/Toronto for blank measurements that opted into reminders (new measurements default to off);
+- an optional per-device Web Push reminder at 20:00 America/Toronto when any active measurement is blank;
 - habit creation, ordering, criteria, activation, and archival;
 - CSV export: `/export.csv` keeps its historical columns, and `/measurements.csv` lists every recorded value as `date,mesure,nom,unite,valeur`.
 

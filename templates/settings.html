@@ -22,7 +22,7 @@
     <section class="notification-card" aria-label="Notification à 20 h" data-push-available="{{.PushAvailable}}" data-vapid-key="{{.VAPIDPublicKey}}">
       <div>
         <h2>Notification à 20 h</h2>
-        <p class="muted">Ce navigateur peut te rappeler les mesures manquantes. Choisis les mesures concernées dans <a href="/measurements">Mesures</a>. Chaque appareil s’abonne séparément. Sur iPhone ou iPad, ajoute d’abord Praxis à l’écran d’accueil.</p>
+        <p class="muted">Ce navigateur peut te rappeler, après 20 h, s’il reste des mesures à remplir pour la journée. Chaque appareil s’abonne séparément. Sur iPhone ou iPad, ajoute d’abord Praxis à l’écran d’accueil.</p>
         <p id="push-status" class="push-status" aria-live="polite"></p>
       </div>
       {{if .PushAvailable}}<button id="push-toggle" type="button">Activer sur cet appareil</button>{{else}}<span class="status">Indisponible</span>{{end}}

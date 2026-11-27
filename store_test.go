@@ -390,18 +390,28 @@ func TestMeasurementLifecycle(t *testing.T) {
 func TestMissingReminderMeasurements(t *testing.T) {
 	store := testStore(t)
 	sleep := measurementByKey(t, store, "sommeil")
+	// "Pas" opts out of the legacy per-measurement reminder; it must still appear
+	// under the global reminder introduced in v0.4.0.
 	if err := store.SaveMeasurement(Measurement{Name: "Pas", Step: 1, Min: 0, Max: 100000}); err != nil {
 		t.Fatal(err)
 	}
+	archived := measurementByKey(t, store, "sommeil")
+	archived.ID = 0
+	archived.Name = "Ancienne"
+	archived.Key = ""
+	archived.Archived = true
+	if err := store.SaveMeasurement(archived); err != nil {
+		t.Fatal(err)
+	}
 	missing, err := store.MissingReminderMeasurements("2026-11-15")
-	if err != nil || len(missing) != 2 || missing[0] != "Sommeil" || missing[1] != "Cafés" {
+	if err != nil || len(missing) != 3 || missing[0] != "Sommeil" || missing[1] != "Cafés" || missing[2] != "Pas" {
 		t.Fatalf("unexpected missing reminders: %v err=%v", missing, err)
 	}
 	if err := store.SaveDay("2026-11-15", "2026-11-15", nil, map[int64]*float64{sleep.ID: floatPointer(8)}, nil); err != nil {
 		t.Fatal(err)
 	}
 	missing, _ = store.MissingReminderMeasurements("2026-11-15")
-	if len(missing) != 1 || missing[0] != "Cafés" {
+	if len(missing) != 2 || missing[0] != "Cafés" || missing[1] != "Pas" {
 		t.Fatalf("unexpected missing reminders after save: %v", missing)
 	}
 }

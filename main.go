@@ -77,7 +77,6 @@ type measurementView struct {
 	Value       string
 	State       string
 	Integer     bool
-	Reminder    bool
 	Archived    bool
 	ValueCount  int
 	Steps       []stepOption
@@ -670,7 +669,6 @@ func (a *App) saveMeasurement(w http.ResponseWriter, r *http.Request) {
 		Name:     r.FormValue("name"),
 		Unit:     r.FormValue("unit"),
 		Hint:     r.FormValue("hint"),
-		Reminder: r.FormValue("reminder") == "on",
 		Archived: r.FormValue("archived") == "on",
 	}
 	fields := []struct {
@@ -1018,7 +1016,7 @@ func newMeasurementView(m Measurement, value *float64) measurementView {
 		Step: formatNumber(m.Step), Min: formatNumber(m.Min), Max: formatNumber(m.Max),
 		TargetMin: formatOptionalNumber(m.TargetMin), TargetMax: formatOptionalNumber(m.TargetMax),
 		TargetLabel: targetLabel(m), Value: formatOptionalNumber(value), State: m.TargetState(value),
-		Integer: m.Integer(), Reminder: m.Reminder, Archived: m.Archived, ValueCount: m.ValueCount,
+		Integer: m.Integer(), Archived: m.Archived, ValueCount: m.ValueCount,
 	}
 	for _, step := range allowedSteps {
 		view.Steps = append(view.Steps, stepOption{Value: formatNumber(step), Label: stepLabels[step], Selected: step == m.Step})

@@ -288,10 +288,11 @@ func (s *Store) SaveMeasurement(m Measurement) error {
 		if err != nil {
 			return err
 		}
+		// The reminder column is left at its DEFAULT (0) since v0.4.0: the reminder is now global.
 		if _, err := tx.Exec(`
-INSERT INTO measurements (key, name, unit, step, min_value, max_value, target_min, target_max, hint, position, reminder, archived_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(position), 0) + 1 FROM measurements), ?, CASE WHEN ? THEN CURRENT_TIMESTAMP END)`,
-			key, m.Name, m.Unit, m.Step, m.Min, m.Max, nullableFloat(m.TargetMin), nullableFloat(m.TargetMax), m.Hint, m.Reminder, m.Archived); err != nil {
+INSERT INTO measurements (key, name, unit, step, min_value, max_value, target_min, target_max, hint, position, archived_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(position), 0) + 1 FROM measurements), CASE WHEN ? THEN CURRENT_TIMESTAMP END)`,
+			key, m.Name, m.Unit, m.Step, m.Min, m.Max, nullableFloat(m.TargetMin), nullableFloat(m.TargetMax), m.Hint, m.Archived); err != nil {
 			return err
 		}
 		return tx.Commit()
@@ -315,11 +316,12 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(position), 0) + 1 FROM m
 	if err := rows.Close(); err != nil {
 		return err
 	}
+	// The reminder column is not updated since v0.4.0: the reminder is now global. Existing values stay for rollback.
 	result, err := tx.Exec(`
 UPDATE measurements SET name = ?, unit = ?, step = ?, min_value = ?, max_value = ?, target_min = ?, target_max = ?,
-  hint = ?, reminder = ?, archived_at = CASE WHEN ? THEN COALESCE(archived_at, CURRENT_TIMESTAMP) END
+  hint = ?, archived_at = CASE WHEN ? THEN COALESCE(archived_at, CURRENT_TIMESTAMP) END
 WHERE id = ?`, m.Name, m.Unit, m.Step, m.Min, m.Max, nullableFloat(m.TargetMin), nullableFloat(m.TargetMax),
-		m.Hint, m.Reminder, m.Archived, m.ID)
+		m.Hint, m.Archived, m.ID)
 	if err != nil {
 		return err
 	}
@@ -402,12 +404,13 @@ ORDER BY v.day_date, m.position, m.id`)
 	return result, rows.Err()
 }
 
-// MissingReminderMeasurements lists active, reminder-enabled measurements without a value on date.
+// MissingReminderMeasurements lists active measurements without a value on date.
+// The per-measurement reminder opt-in column is frozen since v0.4.0: the reminder is now global.
 func (s *Store) MissingReminderMeasurements(date string) ([]string, error) {
 	rows, err := s.db.Query(`
 SELECT m.name FROM measurements m
 LEFT JOIN measurement_values v ON v.measurement_id = m.id AND v.day_date = ?
-WHERE m.archived_at IS NULL AND m.reminder = 1 AND v.value IS NULL
+WHERE m.archived_at IS NULL AND v.value IS NULL
 ORDER BY m.position, m.id`, date)
 	if err != nil {
 		return nil, err
