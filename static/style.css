@@ -629,12 +629,6 @@ a.calendar-day:active { transform: scale(.94); }
 .measurement-actions small { margin-right: auto; }
 .measurement-form.archived { opacity: .7; }
 
-/* Legacy header, still used by habits.html until that page moves to the shared nav. */
-.site-header { min-height: 64px; padding: 0 5vw; display: flex; align-items: center; gap: 28px; border-bottom: 1px solid var(--line); }
-.site-header nav { flex: 1; display: flex; flex-wrap: wrap; gap: 4px; }
-.site-header nav a { padding: 9px 12px; color: var(--muted); font-size: .92rem; text-decoration: none; border-radius: 999px; }
-.site-header nav a[aria-current="page"] { color: var(--text); background: var(--surface-2); }
-
 /* ---------- Phone ---------- */
 
 @media (max-width: 759px) {

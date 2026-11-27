@@ -1,36 +1,17 @@
 <!doctype html>
 <html lang="fr">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Habitudes · Praxis</title>
-  <meta name="theme-color" content="#191b17">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Praxis">
-  <link rel="manifest" href="/static/manifest.webmanifest">
-  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/static/style.css?v=2">
+{{template "head" "Habitudes"}}
   <script src="/static/sortable.min.js?v=1.15.6" defer></script>
   <script src="/static/reorder.js?v=2" defer></script>
 </head>
 <body>
-  <header class="site-header">
-    <a class="brand" href="/day">Praxis</a>
-    <nav aria-label="Navigation principale">
-      <a href="/day">Journée</a>
-      <a href="/calendar">Calendrier</a>
-      <a href="/trends">Tendances</a>
-      <a aria-current="page" href="/habits">Habitudes</a>
-      <a href="/measurements">Mesures</a>
-      <a href="/settings">Paramètres</a>
-    </nav>
-    <form method="post" action="/logout"><button class="link-button" type="submit">Sortir</button></form>
-  </header>
+{{template "nav" "habits"}}
 
-  <main class="page">
+  <main id="main" class="page">
+    {{template "back"}}
     <div class="section-heading">
       <div>
-        <p class="eyebrow">PARAMÈTRES</p>
         <h1>Habitudes</h1>
       </div>
       <a class="text-link" href="/export.csv">Exporter en CSV</a>
@@ -72,9 +53,9 @@
               <label>Active dès<input name="active_from" type="date" value="{{.ActiveFrom}}" required></label>
               <label>Archivée le<input name="active_until" type="date" value="{{.ActiveUntil}}"></label>
               {{if .ActiveUntil}}
-              <button type="submit" formaction="/habits/reactivate" formnovalidate>Réactiver</button>
+              <button type="submit" class="secondary" formaction="/habits/reactivate" formnovalidate>Réactiver</button>
               {{else}}
-              <button type="submit" formaction="/habits/archive" formnovalidate>Archiver aujourd’hui</button>
+              <button type="submit" class="secondary" formaction="/habits/archive" formnovalidate>Archiver aujourd’hui</button>
               {{end}}
             </div>
           </details>
