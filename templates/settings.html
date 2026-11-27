@@ -1,50 +1,43 @@
 <!doctype html>
 <html lang="fr">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Paramètres · Praxis</title>
-  <meta name="theme-color" content="#191b17">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Praxis">
-  <link rel="manifest" href="/static/manifest.webmanifest">
-  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/static/style.css?v=2">
+{{template "head" "Réglages"}}
   <script src="/static/push.js?v=1" defer></script>
 </head>
 <body>
-  <header class="site-header">
-    <a class="brand" href="/day">Praxis</a>
-    <nav aria-label="Navigation principale">
-      <a href="/day">Journée</a>
-      <a href="/calendar">Calendrier</a>
-      <a href="/trends">Tendances</a>
-      <a href="/habits">Habitudes</a>
-      <a href="/measurements">Mesures</a>
-      <a aria-current="page" href="/settings">Paramètres</a>
+{{template "nav" "settings"}}
+
+  <main id="main" class="page narrow">
+    <header class="page-header">
+      <h1>Réglages</h1>
+    </header>
+
+    <h2 class="group-label">Suivi</h2>
+    <nav class="list-group" aria-label="Suivi">
+      <a class="list-row" href="/habits"><span><strong>Habitudes</strong><small>Ajouter, modifier, archiver, réordonner</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></a>
+      <a class="list-row" href="/measurements"><span><strong>Mesures</strong><small>Sommeil, cafés et autres valeurs du jour</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></a>
     </nav>
-    <form method="post" action="/logout"><button class="link-button" type="submit">Sortir</button></form>
-  </header>
 
-  <main class="page narrow">
-    <section class="section-heading">
+    <h2 class="group-label">Rappel</h2>
+    <section class="notification-card" aria-label="Notification à 20 h" data-push-available="{{.PushAvailable}}" data-vapid-key="{{.VAPIDPublicKey}}">
       <div>
-        <p class="eyebrow">PRÉFÉRENCES</p>
-        <h1>Paramètres</h1>
-      </div>
-    </section>
-
-    <section class="notification-card" data-push-available="{{.PushAvailable}}" data-vapid-key="{{.VAPIDPublicKey}}">
-      <div>
-        <p class="eyebrow">RAPPEL</p>
         <h2>Notification à 20 h</h2>
         <p class="muted">Ce navigateur peut te rappeler les mesures manquantes. Choisis les mesures concernées dans <a href="/measurements">Mesures</a>. Chaque appareil s’abonne séparément. Sur iPhone ou iPad, ajoute d’abord Praxis à l’écran d’accueil.</p>
         <p id="push-status" class="push-status" aria-live="polite"></p>
       </div>
       {{if .PushAvailable}}<button id="push-toggle" type="button">Activer sur cet appareil</button>{{else}}<span class="status">Indisponible</span>{{end}}
     </section>
-
     <noscript><p class="alert">JavaScript est requis pour gérer les notifications.</p></noscript>
+
+    <h2 class="group-label">Données</h2>
+    <div class="list-group">
+      <a class="list-row" href="/export.csv" download><span><strong>Exporter les habitudes</strong><small>Fichier CSV</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3M7 10l5 5 5-5M5 21h14"/></svg></a>
+      <a class="list-row" href="/measurements.csv" download><span><strong>Exporter les mesures</strong><small>Fichier CSV</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3M7 10l5 5 5-5M5 21h14"/></svg></a>
+    </div>
+
+    <form method="post" action="/logout" class="list-group">
+      <button class="list-row danger" type="submit">Se déconnecter</button>
+    </form>
   </main>
 </body>
 </html>

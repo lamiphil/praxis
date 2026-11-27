@@ -1,32 +1,13 @@
 <!doctype html>
 <html lang="fr">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Tendances · Praxis</title>
-  <meta name="theme-color" content="#191b17">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Praxis">
-  <link rel="manifest" href="/static/manifest.webmanifest">
-  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/static/style.css?v=2">
+{{template "head" "Tendances"}}
   <script src="/static/trends.js?v=2" defer></script>
 </head>
 <body>
-  <header class="site-header">
-    <a class="brand" href="/day">Praxis</a>
-    <nav aria-label="Navigation principale">
-      <a href="/day">Journée</a>
-      <a href="/calendar">Calendrier</a>
-      <a aria-current="page" href="/trends">Tendances</a>
-      <a href="/habits">Habitudes</a>
-      <a href="/measurements">Mesures</a>
-      <a href="/settings">Paramètres</a>
-    </nav>
-    <form method="post" action="/logout"><button class="link-button" type="submit">Sortir</button></form>
-  </header>
+{{template "nav" "trends"}}
 
-  <main class="page trends-page">
+  <main id="main" class="page trends-page">
     <section class="section-heading">
       <div>
         <p class="eyebrow">30 DERNIERS JOURS</p>

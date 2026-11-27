@@ -1,0 +1,47 @@
+{{/* Shared page chrome. Pass the page title to "head" and the page key to "nav". */}}
+{{define "head"}}
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{{.}} · Praxis</title>
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4f1ea">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#191b17">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Praxis">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="preload" href="/static/newsreader.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/style.css?v=3">
+  <noscript><link rel="stylesheet" href="/static/noscript.css"></noscript>
+{{end}}
+
+{{/* Icon paths from Lucide (ISC license). */}}
+{{define "nav"}}
+  <a class="skip-link" href="#main">Aller au contenu</a>
+  <header class="topbar">
+    <a class="brand" href="/day">Praxis</a>
+    <nav class="tabbar" aria-label="Navigation principale">
+      <a{{if eq . "day"}} aria-current="page"{{end}} href="/day">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>
+        <span>Journée</span>
+      </a>
+      <a{{if eq . "calendar"}} aria-current="page"{{end}} href="/calendar">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v4M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M3 10h18"/></svg>
+        <span>Calendrier</span>
+      </a>
+      <a{{if eq . "trends"}} aria-current="page"{{end}} href="/trends">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m22 7-8.5 8.5-5-5L2 17"/><path d="M16 7h6v6"/></svg>
+        <span>Tendances</span>
+      </a>
+      <a{{if eq . "settings"}} aria-current="page"{{else if or (eq . "habits") (eq . "measurements")}} aria-current="true"{{end}} href="/settings">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4"/></svg>
+        <span>Réglages</span>
+      </a>
+    </nav>
+  </header>
+{{end}}
+
+{{define "back"}}
+  <a class="back-link" href="/settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>Réglages</a>
+{{end}}

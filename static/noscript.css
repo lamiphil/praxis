@@ -1,0 +1,3 @@
+/* Without JavaScript the date picker cannot submit itself: show the field and its button. */
+.date-picker .date-input { position: static; margin-top: 10px; opacity: 1; }
+.date-picker button { margin-top: 8px; }

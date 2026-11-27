@@ -72,7 +72,7 @@ func TestSettingsRouteContainsReminderAndTrendsDoesNot(t *testing.T) {
 		if strings.Contains(body, "Notification à 20 h") != test.wantReminder {
 			t.Errorf("GET %s reminder presence mismatch", test.path)
 		}
-		if !strings.Contains(body, `href="/settings">Paramètres</a>`) || !strings.Contains(body, test.wantCurrentLink) {
+		if !strings.Contains(body, `<span>Réglages</span>`) || !strings.Contains(body, test.wantCurrentLink) {
 			t.Errorf("GET %s navigation is incomplete", test.path)
 		}
 		if strings.Contains(body, "/static/push.js") != test.wantPushScript {
@@ -210,7 +210,7 @@ func TestMeasurementRoutes(t *testing.T) {
 	}
 
 	page := serve(t, mux, http.MethodGet, "/measurements", nil)
-	if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), `aria-current="page" href="/measurements"`) || !strings.Contains(page.Body.String(), "eau-script") {
+	if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), `aria-current="true" href="/settings"`) || !strings.Contains(page.Body.String(), "eau-script") {
 		t.Fatalf("measurements page: %d", page.Code)
 	}
 
